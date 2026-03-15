@@ -1,0 +1,86 @@
+<!--
+  Copyright 2026 Kees Verruijt, Harlingen, The Netherlands
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kees's Futoshiki Helper</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Kees's Futoshiki Helper <span class="version">v1.0</span></h1>
+
+        <div id="setup" class="setup">
+            <label for="size-select">Grid Size:</label>
+            <select id="size-select">
+                <option value="4">4×4</option>
+                <option value="5" selected>5×5</option>
+                <option value="6">6×6</option>
+                <option value="7">7×7</option>
+                <option value="8">8×8</option>
+                <option value="9">9×9</option>
+            </select>
+            <button id="start-btn">Start Empty</button>
+            <button id="generate-btn">Generate Puzzle</button>
+        </div>
+
+        <div id="entry-controls" class="controls hidden">
+            <button id="entry-done-btn">Start Solving</button>
+            <button id="entry-cancel-btn">Cancel</button>
+        </div>
+
+        <div id="controls" class="controls hidden">
+            <button id="new-game-btn">New Game</button>
+            <button id="auto-digits-btn">Auto Digits: OFF</button>
+            <button id="hint-btn">Hint</button>
+        </div>
+
+        <div id="game-container" class="game-container hidden">
+            <div id="grid" class="grid"></div>
+        </div>
+
+        <div id="solvability-status" class="solvability-status hidden">Solvable</div>
+
+        <div id="instructions" class="instructions">
+            <h3>Rules</h3>
+            <ul>
+                <li>Fill each cell with a digit from 1 to N (where N is the grid size)</li>
+                <li>Each digit must appear exactly once in every row</li>
+                <li>Each digit must appear exactly once in every column</li>
+                <li>Inequality constraints (triangles) must be satisfied: the wide side points to the larger number</li>
+            </ul>
+
+            <h3>Controls</h3>
+            <ul>
+                <li>Enter digits 1 to N in each cell</li>
+                <li>To add a constraint, select the cell with the <strong>larger</strong> digit and press <strong>L, R, T, B</strong> (Left, Right, Top, Bottom) to point toward the smaller digit</li>
+                <li>Press <strong>Delete</strong> or <strong>Backspace</strong> to clear a cell</li>
+                <li>Use <strong>Arrow keys</strong> to navigate between cells</li>
+                <li>Enable <strong>Auto Digits</strong> to see possible values for each cell</li>
+                <li>Click <strong>Hint</strong> to highlight a cell that can be solved</li>
+            </ul>
+        </div>
+    </div>
+
+    <footer class="copyright">
+        &copy; 2026 Kees Verruijt, Harlingen, The Netherlands
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

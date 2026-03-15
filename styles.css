@@ -1,0 +1,317 @@
+/*
+ * Copyright 2026 Kees Verruijt, Harlingen, The Netherlands
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f0f4f8;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+h1 {
+    text-align: center;
+    color: #2d3748;
+    margin-bottom: 20px;
+}
+
+.version {
+    font-size: 14px;
+    font-weight: normal;
+    color: #a0aec0;
+}
+
+.setup, .controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+label {
+    font-weight: 500;
+    color: #4a5568;
+}
+
+select, button {
+    padding: 10px 20px;
+    font-size: 16px;
+    border-radius: 6px;
+    border: 1px solid #cbd5e0;
+    cursor: pointer;
+}
+
+select {
+    background: white;
+}
+
+button {
+    background: #4299e1;
+    color: white;
+    border: none;
+    transition: background 0.2s;
+}
+
+button:hover {
+    background: #3182ce;
+}
+
+#auto-digits-btn.active {
+    background: #48bb78;
+}
+
+#auto-digits-btn.active:hover {
+    background: #38a169;
+}
+
+#entry-done-btn {
+    background: #48bb78;
+}
+
+#entry-done-btn:hover {
+    background: #38a169;
+}
+
+#entry-cancel-btn {
+    background: #718096;
+}
+
+#entry-cancel-btn:hover {
+    background: #4a5568;
+}
+
+.game-container {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+
+.grid {
+    display: grid;
+    gap: 20px;
+    background: #e2e8f0;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.grid-cell {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.cell-input {
+    width: 50px;
+    height: 50px;
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+    border: 2px solid #a0aec0;
+    border-radius: 4px;
+    background: white;
+    color: #2d3748;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    caret-color: transparent;
+}
+
+.cell-input:focus {
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.3);
+}
+
+.cell-input.has-value {
+    background: #ebf8ff;
+}
+
+.cell-input.given {
+    background: #e2e8f0;
+    color: #1a202c;
+}
+
+.cell-input.hint-highlight {
+    border-color: #48bb78;
+    box-shadow: 0 0 0 3px rgba(72, 187, 120, 0.4);
+    animation: hint-pulse 1s ease-in-out infinite;
+}
+
+@keyframes hint-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 3px rgba(72, 187, 120, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 6px rgba(72, 187, 120, 0.2);
+    }
+}
+
+#hint-btn.no-hint {
+    background: #e53e3e;
+}
+
+/* Constraint triangles - 80% of box width (40px), centered in 20px gap between boxes */
+.constraint {
+    position: absolute;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+/* Right constraint - triangle pointing right (this cell > right cell) */
+/* Wide side is 40px (80% of 50px), centered in gap: right edge + 10px (half of 20px gap) */
+.constraint-right {
+    right: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-top: 20px solid transparent;
+    border-bottom: 20px solid transparent;
+    border-left: 10px solid #000000;
+}
+
+/* Left constraint - triangle pointing left (this cell > left cell) */
+.constraint-left {
+    left: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-top: 20px solid transparent;
+    border-bottom: 20px solid transparent;
+    border-right: 10px solid #000000;
+}
+
+/* Bottom constraint - triangle pointing down (this cell > bottom cell) */
+.constraint-bottom {
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 20px solid transparent;
+    border-right: 20px solid transparent;
+    border-top: 10px solid #000000;
+}
+
+/* Top constraint - triangle pointing up (this cell > top cell) */
+.constraint-top {
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 20px solid transparent;
+    border-right: 20px solid transparent;
+    border-bottom: 10px solid #000000;
+}
+
+/* Auto digits display */
+.auto-digits {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    right: 4px;
+    bottom: 4px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    pointer-events: none;
+}
+
+.auto-digit {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 12px;
+    color: #4a5568;
+    font-weight: 600;
+}
+
+.auto-digit.hidden {
+    visibility: hidden;
+}
+
+.solvability-status {
+    text-align: center;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 auto 20px;
+    max-width: 200px;
+}
+
+.solvability-status.solvable {
+    background: #c6f6d5;
+    color: #276749;
+}
+
+.solvability-status.unsolvable {
+    background: #fed7d7;
+    color: #c53030;
+}
+
+.solvability-status.solved {
+    background: #bee3f8;
+    color: #2b6cb0;
+}
+
+.instructions {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.instructions h3 {
+    color: #2d3748;
+    margin-bottom: 10px;
+}
+
+.instructions h3:not(:first-child) {
+    margin-top: 20px;
+}
+
+.instructions ul {
+    color: #4a5568;
+    padding-left: 20px;
+}
+
+.instructions li {
+    margin-bottom: 5px;
+}
+
+.instructions strong {
+    color: #2d3748;
+}
+
+.copyright {
+    text-align: center;
+    color: #a0aec0;
+    font-size: 14px;
+    padding: 20px;
+    margin-top: 20px;
+}
