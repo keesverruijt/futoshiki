@@ -1207,6 +1207,7 @@ class FutoshikiGame {
         input.type = 'text';
         input.className = 'cell-input';
         input.maxLength = 1;
+        input.inputMode = 'none'; // Prevent software keyboard on touch devices
         input.dataset.row = row;
         input.dataset.col = col;
 
@@ -2652,6 +2653,7 @@ class FutoshikiGame {
             statusText = 'Solved!';
             this.solvabilityStatus.className = 'solvability-status solved';
             this.onGameCompleted();
+            this.launchFireworks();
         } else if (isSolvable) {
             statusText = 'Solvable' + statsText;
             this.solvabilityStatus.className = 'solvability-status solvable';
@@ -3154,6 +3156,84 @@ class FutoshikiGame {
         // 3. Advanced strategies return elimination info but don't place digits
         // They're useful for hints but the solver uses backtracking when stuck
         return null;
+    }
+
+    // ========== FIREWORKS CELEBRATION ==========
+
+    launchFireworks() {
+        // Don't launch if already celebrating
+        if (document.querySelector('.fireworks-container')) {
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'fireworks-container';
+        document.body.appendChild(container);
+
+        const colors = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#95e1d3', '#f38181', '#aa96da', '#fcbad3', '#a8d8ea'];
+
+        // Launch multiple fireworks over time
+        const launchCount = 8;
+        for (let i = 0; i < launchCount; i++) {
+            setTimeout(() => {
+                this.createFirework(container, colors);
+            }, i * 300);
+        }
+
+        // Remove container after animation completes
+        setTimeout(() => {
+            container.remove();
+        }, 4000);
+    }
+
+    createFirework(container, colors) {
+        const x = Math.random() * window.innerWidth;
+        const endY = window.innerHeight * 0.2 + Math.random() * window.innerHeight * 0.3;
+        const color = colors[Math.floor(Math.random() * colors.length)];
+
+        // Create rising firework
+        const firework = document.createElement('div');
+        firework.className = 'firework';
+        firework.style.left = x + 'px';
+        firework.style.bottom = '0px';
+        firework.style.background = color;
+        firework.style.boxShadow = `0 0 6px ${color}`;
+        container.appendChild(firework);
+
+        // After rise, create explosion
+        setTimeout(() => {
+            firework.remove();
+            this.createExplosion(container, x, endY, color);
+        }, 800);
+    }
+
+    createExplosion(container, x, y, color) {
+        const particleCount = 20 + Math.floor(Math.random() * 15);
+
+        for (let i = 0; i < particleCount; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'firework-particle';
+            particle.style.left = x + 'px';
+            particle.style.top = y + 'px';
+            particle.style.background = color;
+            particle.style.boxShadow = `0 0 4px ${color}`;
+
+            // Random direction for explosion
+            const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5) * 0.5;
+            const distance = 50 + Math.random() * 100;
+            const tx = Math.cos(angle) * distance;
+            const ty = Math.sin(angle) * distance + 30; // Add gravity effect
+
+            particle.style.setProperty('--tx', tx + 'px');
+            particle.style.setProperty('--ty', ty + 'px');
+
+            container.appendChild(particle);
+
+            // Remove particle after animation
+            setTimeout(() => {
+                particle.remove();
+            }, 1000);
+        }
     }
 }
 
