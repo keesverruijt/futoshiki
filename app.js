@@ -184,6 +184,10 @@ class FutoshikiGame {
         this.generationCancelled = false;
         this.useCurrentBest = false;
 
+        // Web Worker for puzzle generation
+        this.generatorWorker = null;
+        this.generationStartTime = null;
+
         // Counter elements
         this.gameCounters = document.getElementById('game-counters');
         this.currentTimeElement = document.getElementById('current-time');
@@ -2503,126 +2507,102 @@ class FutoshikiGame {
     }
 
     useBestPuzzle() {
+        // Tell the worker to stop and use the current best
+        if (this.generatorWorker) {
+            this.generatorWorker.postMessage({ type: 'cancel' });
+        }
         this.useCurrentBest = true;
     }
 
     cancelGeneration() {
         this.generationCancelled = true;
+        if (this.generatorWorker) {
+            this.generatorWorker.postMessage({ type: 'cancel' });
+        }
         this.generationProgress.classList.add('hidden');
     }
 
-    async generatePuzzleAsync(difficulty) {
-        const startTime = Date.now();
-        const maxTime = 30000; // 30 seconds timeout
+    generatePuzzleAsync(difficulty) {
+        this.generationStartTime = Date.now();
 
-        let bestPuzzle = null;
-        let bestHintCount = Infinity;
-        let attempts = 0;
-        let successfulAttempts = 0;
+        // Create worker if it doesn't exist
+        if (!this.generatorWorker) {
+            this.generatorWorker = new Worker('generator-worker.js');
+        }
 
-        // On mobile (narrower screens), yield every attempt for responsiveness
-        const isMobile = window.innerWidth <= 600;
-        const yieldFrequency = isMobile ? 1 : 3;
-
-        const countTotalHints = (grid, constraints) => {
-            let count = 0;
-            // Count given digits
-            for (let row = 0; row < this.size; row++) {
-                for (let col = 0; col < this.size; col++) {
-                    if (grid[row][col] !== null) count++;
-                }
-            }
-            // Count constraints (triangles)
-            for (let row = 0; row < this.size; row++) {
-                for (let col = 0; col < this.size; col++) {
-                    const c = constraints[row][col];
-                    if (c.right) count++;
-                    if (c.bottom) count++;
-                }
-            }
-            return count;
-        };
-
-        const updateProgress = () => {
-            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        // Update progress bar based on elapsed time
+        const updateProgressBar = () => {
+            if (this.generationCancelled) return;
+            const elapsed = Math.floor((Date.now() - this.generationStartTime) / 1000);
             const progress = Math.min(100, (elapsed / 30) * 100);
             this.progressBar.style.width = `${progress}%`;
-            this.progressAttempts.textContent = successfulAttempts.toString();
             this.progressTime.textContent = elapsed.toString();
         };
 
         // Update progress every 100ms
-        const progressInterval = setInterval(updateProgress, 100);
+        const progressInterval = setInterval(updateProgressBar, 100);
 
-        try {
-            while ((Date.now() - startTime) < maxTime) {
-                // Check for cancellation or user wants to use current best
-                if (this.generationCancelled) {
-                    clearInterval(progressInterval);
-                    return;
-                }
-                if (this.useCurrentBest && bestPuzzle) {
+        // Set up message handler
+        this.generatorWorker.onmessage = (e) => {
+            const { type } = e.data;
+
+            switch (type) {
+                case 'progress': {
+                    const { attempts, bestHintCount } = e.data;
+                    this.progressAttempts.textContent = attempts.toString();
+                    if (bestHintCount !== null) {
+                        this.progressBestHints.textContent = bestHintCount.toString();
+                        this.progressBest.classList.remove('hidden');
+                        this.useBestBtn.classList.remove('hidden');
+                    }
                     break;
                 }
 
-                attempts++;
+                case 'complete': {
+                    clearInterval(progressInterval);
+                    this.generationProgress.classList.add('hidden');
 
-                // Yield to allow UI updates (more frequently on mobile for responsiveness)
-                if (attempts % yieldFrequency === 0) {
-                    await new Promise(resolve => setTimeout(resolve, 0));
+                    const { grid, constraints } = e.data;
+                    this.applyGeneratedPuzzle(grid, constraints);
+                    break;
                 }
 
-                // Initialize fresh grid and constraints for this attempt
-                this.initializeGrid();
-
-                // Step 1: Generate a complete valid solution
-                const solution = this.generateSolution();
-                if (!solution) continue;
-
-                // Step 2: Add constraints based on the solution
-                this.addConstraintsFromSolution(solution, difficulty);
-
-                // Step 3: Generate puzzle with appropriate difficulty
-                const success = this.generatePuzzleForDifficulty(solution, difficulty);
-                if (!success) continue;
-
-                successfulAttempts++;
-
-                // Count total hints (givens + constraints)
-                const hintCount = countTotalHints(this.grid, this.constraints);
-
-                // Keep this puzzle if it has fewer total hints
-                if (hintCount < bestHintCount) {
-                    bestHintCount = hintCount;
-                    bestPuzzle = {
-                        grid: this.grid.map(row => [...row]),
-                        constraints: this.constraints.map(row => row.map(c => ({ ...c })))
-                    };
-
-                    // Show the "Use Best" button and best hint count
-                    this.progressBestHints.textContent = hintCount.toString();
-                    this.progressBest.classList.remove('hidden');
-                    this.useBestBtn.classList.remove('hidden');
+                case 'cancelled': {
+                    clearInterval(progressInterval);
+                    // If user wanted to use current best, check if we got a complete message before cancel
+                    if (!this.useCurrentBest) {
+                        this.generationProgress.classList.add('hidden');
+                    }
+                    break;
                 }
 
-                // Update progress display
-                updateProgress();
+                case 'error': {
+                    clearInterval(progressInterval);
+                    this.generationProgress.classList.add('hidden');
+                    alert(e.data.message + ' Please try again.');
+                    break;
+                }
             }
-        } finally {
+        };
+
+        this.generatorWorker.onerror = (error) => {
             clearInterval(progressInterval);
-        }
+            this.generationProgress.classList.add('hidden');
+            console.error('Generator worker error:', error);
+            alert('An error occurred during puzzle generation. Please try again.');
+        };
 
-        // Hide progress bar
-        this.generationProgress.classList.add('hidden');
+        // Start generation
+        this.generatorWorker.postMessage({
+            type: 'generate',
+            data: { size: this.size, difficulty }
+        });
+    }
 
-        if (!bestPuzzle) {
-            alert(`Failed to generate ${difficulty} puzzle after ${attempts} attempts. Please try again.`);
-            return;
-        }
-
-        // Use the best puzzle found
-        this.grid = bestPuzzle.grid;
-        this.constraints = bestPuzzle.constraints;
+    applyGeneratedPuzzle(grid, constraints) {
+        // Use the generated puzzle
+        this.grid = grid;
+        this.constraints = constraints;
         this.givenCells = new Set();
 
         // Mark all filled cells as givens
