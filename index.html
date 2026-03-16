@@ -20,10 +20,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kees's Futoshiki Helper</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>Kees's Futoshiki Helper <span class="version">v1.0</span></h1>
+        <h1>Kees's Futoshiki Helper <span class="version">v2.5</span></h1>
 
         <div id="setup" class="setup">
             <label for="size-select">Grid Size:</label>
@@ -35,12 +38,18 @@
                 <option value="8">8×8</option>
                 <option value="9">9×9</option>
             </select>
-            <button id="start-btn">Start Empty</button>
-            <button id="generate-btn">Generate Puzzle</button>
+            <button id="start-btn">Enter Puzzle</button>
+            <div class="generate-buttons">
+                <span class="generate-label">Generate:</span>
+                <button type="button" id="generate-easy-btn" class="difficulty-btn easy">Easy</button>
+                <button type="button" id="generate-medium-btn" class="difficulty-btn medium">Medium</button>
+                <button type="button" id="generate-hard-btn" class="difficulty-btn hard">Hard</button>
+            </div>
         </div>
 
         <div id="entry-controls" class="controls hidden">
             <button id="entry-done-btn">Start Solving</button>
+            <button id="share-btn">Share Puzzle</button>
             <button id="entry-cancel-btn">Cancel</button>
         </div>
 
@@ -50,11 +59,45 @@
             <button id="hint-btn">Hint</button>
         </div>
 
+        <div id="generation-progress" class="generation-progress hidden">
+            <div class="progress-content">
+                <div class="progress-title">Generating puzzle...</div>
+                <div class="progress-bar-container">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+                <div class="progress-stats">
+                    <span id="progress-attempts">0</span> puzzles considered
+                    <span class="progress-separator">|</span>
+                    <span id="progress-time">0</span>s elapsed
+                </div>
+                <button type="button" id="cancel-generation-btn" class="cancel-btn">Cancel</button>
+            </div>
+        </div>
+
         <div id="game-container" class="game-container hidden">
             <div id="grid" class="grid"></div>
         </div>
 
         <div id="solvability-status" class="solvability-status hidden">Solvable</div>
+
+        <div id="game-counters" class="game-counters hidden">
+            <div class="counter-row">
+                <span class="counter-label">Time:</span>
+                <span id="current-time" class="counter-value timer">0:00</span>
+                <span class="counter-separator">|</span>
+                <span class="counter-label">Your avg:</span>
+                <span id="local-avg-time" class="counter-value">--</span>
+            </div>
+            <div class="counter-row">
+                <span class="counter-label" id="size-label">5x5</span>
+                <span class="counter-separator">|</span>
+                <span id="local-completed" class="counter-value">0</span>
+                <span class="counter-text">solved</span>
+                <span class="counter-separator">|</span>
+                <span class="counter-label">Global avg:</span>
+                <span id="global-avg-time" class="counter-value">--</span>
+            </div>
+        </div>
 
         <div id="instructions" class="instructions">
             <h3>Rules</h3>

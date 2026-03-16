@@ -108,6 +108,107 @@ button:hover {
     background: #4a5568;
 }
 
+#share-btn {
+    background: #805ad5;
+}
+
+#share-btn:hover {
+    background: #6b46c1;
+}
+
+/* Difficulty buttons */
+.generate-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.generate-label {
+    font-weight: 500;
+    color: #4a5568;
+    margin-right: 4px;
+}
+
+.difficulty-btn {
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.difficulty-btn.easy {
+    background: #48bb78;
+}
+
+.difficulty-btn.easy:hover {
+    background: #38a169;
+}
+
+.difficulty-btn.medium {
+    background: #ed8936;
+}
+
+.difficulty-btn.medium:hover {
+    background: #dd6b20;
+}
+
+.difficulty-btn.hard {
+    background: #e53e3e;
+}
+
+.difficulty-btn.hard:hover {
+    background: #c53030;
+}
+
+/* Hint pending state */
+#hint-btn.hint-pending {
+    background: #805ad5;
+}
+
+#hint-btn.hint-pending:hover {
+    background: #6b46c1;
+}
+
+.solvability-status.hint-message {
+    background: #e9d8fd;
+    color: #553c9a;
+    max-width: 400px;
+}
+
+/* Completed digit styling - when all N instances of a digit are placed */
+.cell-input.digit-complete {
+    background: #c6f6d5 !important;
+    color: #276749;
+}
+
+.cell-input.digit-complete.given {
+    background: #9ae6b4 !important;
+    color: #22543d;
+}
+
+/* Flash animation when a digit set is completed */
+.cell-input.digit-flash {
+    animation: digit-complete-flash 0.6s ease-out;
+}
+
+@keyframes digit-complete-flash {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(72, 187, 120, 0.7);
+    }
+    30% {
+        transform: scale(1.15);
+        box-shadow: 0 0 0 8px rgba(72, 187, 120, 0.4);
+    }
+    60% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 12px rgba(72, 187, 120, 0);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(72, 187, 120, 0);
+    }
+}
+
 .game-container {
     display: flex;
     justify-content: center;
@@ -116,9 +217,9 @@ button:hover {
 
 .grid {
     display: grid;
-    gap: 20px;
+    gap: 12px;
     background: #e2e8f0;
-    padding: 15px;
+    padding: 10px;
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
@@ -154,9 +255,20 @@ button:hover {
     background: #ebf8ff;
 }
 
+.grid-cell.has-auto-digits {
+    background: #ebf8ff;
+    border-radius: 4px;
+}
+
 .cell-input.given {
-    background: #e2e8f0;
+    background: #e2e8f0 !important;
     color: #1a202c;
+}
+
+.cell-input.conflict {
+    background: #fed7d7;
+    border-color: #e53e3e;
+    color: #c53030;
 }
 
 .cell-input.hint-highlight {
@@ -178,7 +290,7 @@ button:hover {
     background: #e53e3e;
 }
 
-/* Constraint triangles - 80% of box width (40px), centered in 20px gap between boxes */
+/* Constraint triangles - fill the 12px gap between boxes */
 .constraint {
     position: absolute;
     width: 0;
@@ -187,44 +299,43 @@ button:hover {
 }
 
 /* Right constraint - triangle pointing right (this cell > right cell) */
-/* Wide side is 40px (80% of 50px), centered in gap: right edge + 10px (half of 20px gap) */
 .constraint-right {
-    right: -20px;
+    right: -12px;
     top: 50%;
     transform: translateY(-50%);
     border-top: 20px solid transparent;
     border-bottom: 20px solid transparent;
-    border-left: 10px solid #000000;
+    border-left: 12px solid #000000;
 }
 
 /* Left constraint - triangle pointing left (this cell > left cell) */
 .constraint-left {
-    left: -20px;
+    left: -12px;
     top: 50%;
     transform: translateY(-50%);
     border-top: 20px solid transparent;
     border-bottom: 20px solid transparent;
-    border-right: 10px solid #000000;
+    border-right: 12px solid #000000;
 }
 
 /* Bottom constraint - triangle pointing down (this cell > bottom cell) */
 .constraint-bottom {
-    bottom: -20px;
+    bottom: -12px;
     left: 50%;
     transform: translateX(-50%);
     border-left: 20px solid transparent;
     border-right: 20px solid transparent;
-    border-top: 10px solid #000000;
+    border-top: 12px solid #000000;
 }
 
 /* Top constraint - triangle pointing up (this cell > top cell) */
 .constraint-top {
-    top: -20px;
+    top: -12px;
     left: 50%;
     transform: translateX(-50%);
     border-left: 20px solid transparent;
     border-right: 20px solid transparent;
-    border-bottom: 10px solid #000000;
+    border-bottom: 12px solid #000000;
 }
 
 /* Auto digits display */
@@ -257,10 +368,10 @@ button:hover {
     text-align: center;
     padding: 12px 24px;
     border-radius: 6px;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     margin: 0 auto 20px;
-    max-width: 200px;
+    max-width: 320px;
 }
 
 .solvability-status.solvable {
@@ -273,9 +384,82 @@ button:hover {
     color: #c53030;
 }
 
+.solvability-status.solving {
+    background: #fef3c7;
+    color: #92400e;
+}
+
 .solvability-status.solved {
     background: #bee3f8;
     color: #2b6cb0;
+}
+
+/* Game counters */
+.game-counters {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin: 0 auto 20px;
+    padding: 15px 25px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    max-width: 400px;
+}
+
+.counter-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.counter-label {
+    font-size: 14px;
+    color: #718096;
+    min-width: auto;
+}
+
+.counter-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #2d3748;
+    min-width: 35px;
+    text-align: right;
+}
+
+.counter-value.timer {
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    min-width: 45px;
+}
+
+.counter-text {
+    font-size: 14px;
+    color: #718096;
+}
+
+.counter-separator {
+    color: #cbd5e0;
+    margin: 0 5px;
+}
+
+.counter-value.updating {
+    animation: counter-pulse 0.3s ease-out;
+}
+
+@keyframes counter-pulse {
+    0% {
+        transform: scale(1);
+        color: #2d3748;
+    }
+    50% {
+        transform: scale(1.2);
+        color: #48bb78;
+    }
+    100% {
+        transform: scale(1);
+        color: #2d3748;
+    }
 }
 
 .instructions {
@@ -306,6 +490,79 @@ button:hover {
 
 .instructions strong {
     color: #2d3748;
+}
+
+/* Generation progress bar */
+.generation-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.progress-content {
+    background: white;
+    padding: 30px 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    min-width: 320px;
+}
+
+.progress-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 20px;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 12px;
+    background: #e2e8f0;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 15px;
+}
+
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #4299e1, #48bb78);
+    border-radius: 6px;
+    transition: width 0.3s ease;
+}
+
+.progress-stats {
+    font-size: 14px;
+    color: #718096;
+    margin-bottom: 20px;
+}
+
+.progress-separator {
+    margin: 0 8px;
+    color: #cbd5e0;
+}
+
+.cancel-btn {
+    padding: 10px 30px;
+    font-size: 16px;
+    background: #e53e3e;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.cancel-btn:hover {
+    background: #c53030;
 }
 
 .copyright {
