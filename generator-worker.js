@@ -63,9 +63,13 @@ function generatePuzzle(difficulty) {
         let count = 0;
         for (let row = 0; row < size; row++) {
             for (let col = 0; col < size; col++) {
+                // Count given digits
                 if (g[row][col] !== null) count++;
+                // Count all constraints (each constraint is stored on one cell only)
                 if (c[row][col].right) count++;
+                if (c[row][col].left) count++;
                 if (c[row][col].bottom) count++;
+                if (c[row][col].top) count++;
             }
         }
         return count;
@@ -88,14 +92,11 @@ function generatePuzzle(difficulty) {
         // Initialize fresh grid and constraints
         initializeGrid();
 
-        // Step 1: Generate a complete valid solution
+        // Step 1: Generate a complete valid solution (Latin square)
         const solution = generateSolution();
         if (!solution) continue;
 
-        // Step 2: Add constraints based on the solution
-        addConstraintsFromSolution(solution, difficulty);
-
-        // Step 3: Generate puzzle with appropriate difficulty
+        // Step 2: Generate puzzle (starts with all constraints, then removes digits/constraints)
         const success = generatePuzzleForDifficulty(solution, difficulty);
         if (!success) continue;
 
@@ -112,12 +113,14 @@ function generatePuzzle(difficulty) {
                 constraints: constraints.map(row => row.map(c => ({ ...c })))
             };
 
-            // Notify about new best
+            // Notify about new best (include puzzle data for "Use Best" functionality)
             postMessage({
                 type: 'progress',
                 attempts: successfulAttempts,
                 bestHintCount,
-                elapsed: (Date.now() - startTime) / 1000
+                elapsed: (Date.now() - startTime) / 1000,
+                bestGrid: bestPuzzle.grid,
+                bestConstraints: bestPuzzle.constraints
             });
         }
     }
@@ -215,25 +218,12 @@ function shuffleArray(array) {
 
 // ========== Constraint Generation ==========
 
-function addConstraintsFromSolution(solution, difficulty) {
-    let constraintProbability;
-    switch (difficulty) {
-        case 'easy':
-            constraintProbability = 0.6 + Math.random() * 0.2;
-            break;
-        case 'medium':
-            constraintProbability = 0.4 + Math.random() * 0.2;
-            break;
-        case 'hard':
-            constraintProbability = 0.25 + Math.random() * 0.15;
-            break;
-        default:
-            constraintProbability = 0.5;
-    }
-
+// Add ALL constraints from the solution
+function addAllConstraints(solution) {
     for (let row = 0; row < size; row++) {
         for (let col = 0; col < size; col++) {
-            if (col + 1 < size && Math.random() < constraintProbability) {
+            // Horizontal constraint (right neighbor)
+            if (col + 1 < size) {
                 if (solution[row][col] > solution[row][col + 1]) {
                     constraints[row][col].right = true;
                 } else {
@@ -241,7 +231,8 @@ function addConstraintsFromSolution(solution, difficulty) {
                 }
             }
 
-            if (row + 1 < size && Math.random() < constraintProbability) {
+            // Vertical constraint (bottom neighbor)
+            if (row + 1 < size) {
                 if (solution[row][col] > solution[row + 1][col]) {
                     constraints[row][col].bottom = true;
                 } else {
@@ -250,6 +241,28 @@ function addConstraintsFromSolution(solution, difficulty) {
             }
         }
     }
+}
+
+// Get list of all active constraints
+function getActiveConstraints() {
+    const active = [];
+    for (let row = 0; row < size; row++) {
+        for (let col = 0; col < size; col++) {
+            if (constraints[row][col].right) {
+                active.push({ row, col, dir: 'right' });
+            }
+            if (constraints[row][col].left) {
+                active.push({ row, col, dir: 'left' });
+            }
+            if (constraints[row][col].bottom) {
+                active.push({ row, col, dir: 'bottom' });
+            }
+            if (constraints[row][col].top) {
+                active.push({ row, col, dir: 'top' });
+            }
+        }
+    }
+    return active;
 }
 
 // ========== Puzzle Generation ==========
@@ -262,44 +275,239 @@ function generatePuzzleForDifficulty(solution, difficulty) {
         }
     }
 
-    // Get all positions and shuffle them
-    const positions = [];
+    // Add ALL constraints
+    addAllConstraints(solution);
+
+    // Get all digit positions and shuffle them
+    const digitPositions = [];
     for (let row = 0; row < size; row++) {
         for (let col = 0; col < size; col++) {
-            positions.push({ row, col });
+            digitPositions.push({ row, col });
         }
     }
-    shuffleArray(positions);
+    shuffleArray(digitPositions);
 
-    // Try to remove each digit
-    for (const { row, col } of positions) {
-        const backup = grid[row][col];
-        grid[row][col] = null;
+    // Track what we can still remove
+    let canRemoveDigits = true;
+    let canRemoveConstraints = true;
+    let digitIndex = 0;
 
-        const analysis = analyzePuzzleDifficulty();
+    // Alternate between removing digits and constraints until neither is possible
+    while ((canRemoveDigits || canRemoveConstraints) && !cancelled) {
+        // Try to remove a digit
+        if (canRemoveDigits) {
+            let removedDigit = false;
 
-        if (!analysis.solvable) {
-            grid[row][col] = backup;
-        } else if (difficulty === 'easy' && analysis.maxStrategyRequired !== 'nakedSingle') {
-            grid[row][col] = backup;
-        } else if (difficulty === 'medium' && analysis.maxStrategyRequired === 'xWing') {
-            grid[row][col] = backup;
+            while (digitIndex < digitPositions.length) {
+                const { row, col } = digitPositions[digitIndex];
+                digitIndex++;
+
+                if (grid[row][col] === null) continue;
+
+                const backup = grid[row][col];
+                grid[row][col] = null;
+
+                const analysis = analyzePuzzleDifficulty();
+
+                let keep = analysis.solvable;
+                if (keep && difficulty === 'easy' && analysis.maxStrategyRequired !== 'nakedSingle') {
+                    keep = false;
+                }
+                if (keep && difficulty === 'medium' && analysis.maxStrategyRequired === 'xWing') {
+                    keep = false;
+                }
+
+                if (keep) {
+                    removedDigit = true;
+                    break;
+                } else {
+                    grid[row][col] = backup;
+                }
+            }
+
+            if (!removedDigit) {
+                canRemoveDigits = false;
+            }
+        }
+
+        // Try to remove a constraint
+        if (canRemoveConstraints) {
+            const activeConstraints = getActiveConstraints();
+            shuffleArray(activeConstraints);
+
+            let removedConstraint = false;
+
+            for (const c of activeConstraints) {
+                constraints[c.row][c.col][c.dir] = false;
+
+                const analysis = analyzePuzzleDifficulty();
+
+                let keep = analysis.solvable;
+                if (keep && difficulty === 'easy' && analysis.maxStrategyRequired !== 'nakedSingle') {
+                    keep = false;
+                }
+                if (keep && difficulty === 'medium' && analysis.maxStrategyRequired === 'xWing') {
+                    keep = false;
+                }
+
+                if (keep) {
+                    removedConstraint = true;
+                    break;
+                } else {
+                    constraints[c.row][c.col][c.dir] = true;
+                }
+            }
+
+            if (!removedConstraint) {
+                canRemoveConstraints = false;
+            }
         }
     }
 
     const finalAnalysis = analyzePuzzleDifficulty();
 
-    if (difficulty === 'medium') {
-        if (finalAnalysis.maxStrategyRequired === 'nakedSingle') {
-            return false;
-        }
+    if (!finalAnalysis.solvable) {
+        return false;
+    }
+
+    // Check difficulty requirements
+    // Strategy hierarchy: nakedSingle < hiddenSingle < nakedPair < hiddenPair < xWing
+    const strategyLevel = {
+        'nakedSingle': 1,
+        'hiddenSingle': 2,
+        'nakedPair': 3,
+        'hiddenPair': 4,
+        'xWing': 5
+    };
+    const level = strategyLevel[finalAnalysis.maxStrategyRequired] || 0;
+
+    if (difficulty === 'easy') {
+        // Easy: only naked singles
+        if (level > 1) return false;
+    } else if (difficulty === 'medium') {
+        // Medium: requires at least hidden singles, but no X-Wing
+        if (level < 2 || level > 4) return false;
     } else if (difficulty === 'hard') {
-        if (finalAnalysis.maxStrategyRequired !== 'xWing') {
-            return false;
+        // Hard: requires at least hidden pairs or X-Wing
+        if (level < 4) return false;
+    }
+
+    // Verify the puzzle has exactly one solution
+    if (!hasUniqueSolution()) {
+        return false;
+    }
+
+    return true;
+}
+
+// ========== Uniqueness Check ==========
+
+// Count solutions using backtracking (stops at 2)
+function hasUniqueSolution() {
+    const workingGrid = grid.map(row => [...row]);
+    let solutionCount = 0;
+
+    function solve(g) {
+        if (solutionCount >= 2) return; // Early exit if multiple solutions found
+
+        // Find first empty cell
+        let emptyRow = -1, emptyCol = -1;
+        outer: for (let row = 0; row < size; row++) {
+            for (let col = 0; col < size; col++) {
+                if (g[row][col] === null) {
+                    emptyRow = row;
+                    emptyCol = col;
+                    break outer;
+                }
+            }
+        }
+
+        // No empty cells - found a solution
+        if (emptyRow === -1) {
+            solutionCount++;
+            return;
+        }
+
+        // Try each digit
+        for (let digit = 1; digit <= size; digit++) {
+            if (isValidPlacement(g, emptyRow, emptyCol, digit)) {
+                g[emptyRow][emptyCol] = digit;
+                solve(g);
+                g[emptyRow][emptyCol] = null;
+
+                if (solutionCount >= 2) return; // Early exit
+            }
         }
     }
 
-    return finalAnalysis.solvable;
+    function isValidPlacement(g, row, col, digit) {
+        // Check row
+        for (let c = 0; c < size; c++) {
+            if (g[row][c] === digit) return false;
+        }
+
+        // Check column
+        for (let r = 0; r < size; r++) {
+            if (g[r][col] === digit) return false;
+        }
+
+        // Check constraints
+        const cons = constraints[row][col];
+
+        // This cell > right neighbor
+        if (cons.right && col + 1 < size) {
+            const neighbor = g[row][col + 1];
+            if (neighbor !== null && digit <= neighbor) return false;
+        }
+
+        // This cell > left neighbor
+        if (cons.left && col > 0) {
+            const neighbor = g[row][col - 1];
+            if (neighbor !== null && digit <= neighbor) return false;
+        }
+
+        // This cell > bottom neighbor
+        if (cons.bottom && row + 1 < size) {
+            const neighbor = g[row + 1][col];
+            if (neighbor !== null && digit <= neighbor) return false;
+        }
+
+        // This cell > top neighbor
+        if (cons.top && row > 0) {
+            const neighbor = g[row - 1][col];
+            if (neighbor !== null && digit <= neighbor) return false;
+        }
+
+        // Check if neighbors have constraints pointing to this cell
+        // Right neighbor > this cell
+        if (col + 1 < size && constraints[row][col + 1].left) {
+            const neighbor = g[row][col + 1];
+            if (neighbor !== null && digit >= neighbor) return false;
+        }
+
+        // Left neighbor > this cell
+        if (col > 0 && constraints[row][col - 1].right) {
+            const neighbor = g[row][col - 1];
+            if (neighbor !== null && digit >= neighbor) return false;
+        }
+
+        // Bottom neighbor > this cell
+        if (row + 1 < size && constraints[row + 1][col].top) {
+            const neighbor = g[row + 1][col];
+            if (neighbor !== null && digit >= neighbor) return false;
+        }
+
+        // Top neighbor > this cell
+        if (row > 0 && constraints[row - 1][col].bottom) {
+            const neighbor = g[row - 1][col];
+            if (neighbor !== null && digit >= neighbor) return false;
+        }
+
+        return true;
+    }
+
+    solve(workingGrid);
+    return solutionCount === 1;
 }
 
 // ========== Difficulty Analysis ==========

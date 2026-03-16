@@ -211,8 +211,93 @@ button:hover {
 
 .game-container {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
     margin: 20px 0;
+}
+
+/* Input row with number buttons */
+.input-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 15px;
+    padding: 10px;
+    background: #e2e8f0;
+    border-radius: 8px;
+}
+
+.number-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.input-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    font-weight: bold;
+    border: none;
+    border-radius: 6px;
+    background: #4299e1;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.input-btn:hover {
+    background: #3182ce;
+}
+
+.input-btn:active {
+    transform: scale(0.95);
+}
+
+.input-btn.eraser-btn {
+    background: #e53e3e;
+    font-size: 22px;
+}
+
+.input-btn.eraser-btn:hover {
+    background: #c53030;
+}
+
+.input-btn.mode-btn {
+    background: #805ad5;
+    padding: 4px;
+}
+
+.input-btn.mode-btn:hover {
+    background: #6b46c1;
+}
+
+.input-btn.mode-btn.active {
+    background: #38a169;
+    box-shadow: 0 0 0 3px rgba(56, 161, 105, 0.4);
+}
+
+.mode-icon {
+    display: flex;
+    flex-direction: column;
+    font-size: 9px;
+    line-height: 1.1;
+    font-weight: 600;
+}
+
+/* Candidate mode styling for number buttons */
+.input-row.candidate-mode .input-btn.number-btn {
+    font-size: 14px;
+}
+
+/* Digit complete styling for input buttons */
+.input-btn.number-btn.digit-complete {
+    background: #48bb78;
+    opacity: 0.6;
 }
 
 .grid {
@@ -366,6 +451,13 @@ button:hover {
 
 .auto-digit.hidden {
     visibility: hidden;
+}
+
+/* Eliminated candidates (manually crossed out by user) */
+.auto-digit.eliminated {
+    color: #cbd5e0;
+    text-decoration: line-through;
+    opacity: 0.5;
 }
 
 .solvability-status {

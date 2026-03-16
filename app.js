@@ -205,6 +205,13 @@ class FutoshikiGame {
         this.hintsUsed = 0;
         this.hintPenaltySeconds = 30;
 
+        // Input row elements for candidate mode
+        this.inputRow = document.getElementById('input-row');
+        this.candidateModeBtn = document.getElementById('candidate-mode-btn');
+        this.numberButtonsContainer = document.getElementById('number-buttons');
+        this.eraserBtn = document.getElementById('eraser-btn');
+        this.candidateMode = false;
+
         this.bindEvents();
     }
 
@@ -221,6 +228,10 @@ class FutoshikiGame {
         this.entryDoneBtn.addEventListener('click', () => this.finishEntry());
         this.entryCancelBtn.addEventListener('click', () => this.showSetup());
         this.shareBtn.addEventListener('click', () => this.sharePuzzle());
+
+        // Input row event bindings
+        this.candidateModeBtn.addEventListener('click', () => this.toggleCandidateMode());
+        this.eraserBtn.addEventListener('click', () => this.onEraserClick());
 
         // Check for puzzle in URL on load
         this.restorePuzzleFromURL();
@@ -605,6 +616,7 @@ class FutoshikiGame {
         this.entryControlsElement.classList.add('hidden');
         this.controlsElement.classList.remove('hidden');
         this.gameCounters.classList.remove('hidden');
+        this.inputRow.classList.remove('hidden');
 
         // Start the timer now that solving begins
         this.onGameStarted();
@@ -634,9 +646,13 @@ class FutoshikiGame {
         this.gameContainer.classList.add('hidden');
         this.solvabilityStatus.classList.add('hidden');
         this.gameCounters.classList.add('hidden');
+        this.inputRow.classList.add('hidden');
         this.autoDigitsEnabled = false;
         this.autoDigitsBtn.textContent = 'Auto Digits: OFF';
         this.autoDigitsBtn.classList.remove('active');
+        this.candidateMode = false;
+        this.candidateModeBtn.classList.remove('active');
+        this.inputRow.classList.remove('candidate-mode');
         this.entryMode = false;
         this.givenCells = new Set();
     }
@@ -979,6 +995,158 @@ class FutoshikiGame {
         eraseBtn.setAttribute('aria-label', 'Erase');
         eraseBtn.addEventListener('click', () => this.onNumberPadClick(null));
         this.numberPad.appendChild(eraseBtn);
+
+        // Also render the input row buttons
+        this.renderInputRow();
+    }
+
+    renderInputRow() {
+        this.numberButtonsContainer.innerHTML = '';
+
+        // Create digit buttons 1 to N
+        for (let d = 1; d <= this.size; d++) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'input-btn number-btn';
+            btn.textContent = d;
+            btn.addEventListener('click', () => this.onInputRowNumberClick(d));
+            this.numberButtonsContainer.appendChild(btn);
+        }
+    }
+
+    toggleCandidateMode() {
+        this.candidateMode = !this.candidateMode;
+
+        if (this.candidateMode) {
+            this.candidateModeBtn.classList.add('active');
+            this.inputRow.classList.add('candidate-mode');
+        } else {
+            this.candidateModeBtn.classList.remove('active');
+            this.inputRow.classList.remove('candidate-mode');
+        }
+    }
+
+    onInputRowNumberClick(digit) {
+        // Use selectedCell which persists even when focus moves to button
+        if (!this.selectedCell) {
+            // If no cell was selected, try the first empty cell
+            const firstEmpty = this.gridElement.querySelector('.cell-input:not(.given)');
+            if (firstEmpty) {
+                firstEmpty.focus();
+                this.handleInputRowDigit(firstEmpty, digit);
+            }
+            return;
+        }
+
+        const { row, col } = this.selectedCell;
+        const input = this.gridElement.querySelector(
+            `.cell-input[data-row="${row}"][data-col="${col}"]`
+        );
+
+        if (!input) return;
+
+        // Don't allow editing given cells
+        if (input.classList.contains('given')) {
+            return;
+        }
+
+        this.handleInputRowDigit(input, digit);
+    }
+
+    handleInputRowDigit(input, digit) {
+        const row = parseInt(input.dataset.row);
+        const col = parseInt(input.dataset.col);
+
+        if (this.candidateMode && !this.entryMode) {
+            // In candidate mode, toggle the candidate for this digit
+            this.toggleCandidate(row, col, digit);
+        } else {
+            // Normal mode - set the digit (same flow as keyboard input)
+            this.grid[row][col] = digit;
+            input.value = digit;
+            input.classList.add('has-value');
+            // Clear any candidate eliminations when placing a value
+            this.clearCandidateEliminations(row, col);
+            this.updateAutoDigits();
+            this.updateConflictDisplay();
+            this.checkCompletedDigits(digit);
+            this.checkSolvability();
+        }
+    }
+
+    toggleCandidate(row, col, digit) {
+        // Only allow candidate toggling on empty cells
+        if (this.grid[row][col] !== null) {
+            return;
+        }
+
+        const cell = this.gridElement.querySelector(`.grid-cell[data-row="${row}"][data-col="${col}"]`);
+        if (!cell) return;
+
+        const autoDigitsContainer = cell.querySelector('.auto-digits');
+        if (!autoDigitsContainer) return;
+
+        const digitSpan = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${digit}"]`);
+        if (!digitSpan) return;
+
+        // Toggle the eliminated state
+        if (digitSpan.classList.contains('eliminated')) {
+            digitSpan.classList.remove('eliminated');
+        } else {
+            digitSpan.classList.add('eliminated');
+        }
+
+        // Make sure auto-digits are visible when in candidate mode
+        if (!this.autoDigitsEnabled) {
+            this.toggleAutoDigits();
+        }
+    }
+
+    onEraserClick() {
+        // Use selectedCell which persists even when focus moves to button
+        if (!this.selectedCell) {
+            return;
+        }
+
+        const { row, col } = this.selectedCell;
+        const input = this.gridElement.querySelector(
+            `.cell-input[data-row="${row}"][data-col="${col}"]`
+        );
+
+        if (!input) return;
+
+        // Don't allow erasing given cells
+        if (input.classList.contains('given')) {
+            return;
+        }
+
+        if (this.candidateMode) {
+            // In candidate mode, clear all eliminations for this cell
+            this.clearCandidateEliminations(row, col);
+        } else {
+            // Normal mode - clear the cell
+            input.value = '';
+            this.grid[row][col] = null;
+            input.classList.remove('has-value', 'conflict');
+            this.checkConflicts();
+            this.updateAutoDigits();
+            this.updateAllCompletedDigits();
+
+            if (!this.entryMode) {
+                this.checkSolvability();
+            }
+        }
+    }
+
+    clearCandidateEliminations(row, col) {
+        const cell = this.gridElement.querySelector(`.grid-cell[data-row="${row}"][data-col="${col}"]`);
+        if (!cell) return;
+
+        const autoDigitsContainer = cell.querySelector('.auto-digits');
+        if (!autoDigitsContainer) return;
+
+        const digitSpans = autoDigitsContainer.querySelectorAll('.auto-digit');
+        digitSpans.forEach(span => span.classList.remove('eliminated'));
     }
 
     onNumberPadClick(digit) {
@@ -1016,6 +1184,8 @@ class FutoshikiGame {
             input.value = digit;
             this.grid[row][col] = digit;
             input.classList.add('has-value');
+            // Clear any candidate eliminations when placing a value
+            this.clearCandidateEliminations(row, col);
         }
 
         this.checkConflicts();
@@ -1024,7 +1194,6 @@ class FutoshikiGame {
 
         if (!this.entryMode) {
             this.checkSolvability();
-            this.checkCompletion();
         }
     }
 
@@ -1103,6 +1272,14 @@ class FutoshikiGame {
                 e.preventDefault();
                 return;
             }
+
+            // In candidate mode, clear all candidate eliminations for this cell
+            if (this.candidateMode && !this.entryMode) {
+                e.preventDefault();
+                this.clearCandidateEliminations(row, col);
+                return;
+            }
+
             this.grid[row][col] = null;
             e.target.value = '';
             e.target.classList.remove('has-value');
@@ -1127,9 +1304,18 @@ class FutoshikiGame {
             if (!this.entryMode && isGiven) {
                 return;
             }
+
+            // In candidate mode, toggle the candidate instead of setting the value
+            if (this.candidateMode && !this.entryMode) {
+                this.toggleCandidate(row, col, num);
+                return;
+            }
+
             this.grid[row][col] = num;
             e.target.value = num;
             e.target.classList.add('has-value');
+            // Clear any candidate eliminations when placing a value
+            this.clearCandidateEliminations(row, col);
             this.updateAutoDigits();
             this.updateConflictDisplay();
             this.checkCompletedDigits(num);
@@ -2488,6 +2674,7 @@ class FutoshikiGame {
         this.resetGameState();
         this.generationCancelled = false;
         this.useCurrentBest = false;
+        this.currentBestPuzzle = null;
 
         // Show progress bar immediately, hide "Use Best" button initially
         this.generationProgress.classList.remove('hidden');
@@ -2507,11 +2694,22 @@ class FutoshikiGame {
     }
 
     useBestPuzzle() {
-        // Tell the worker to stop and use the current best
-        if (this.generatorWorker) {
-            this.generatorWorker.postMessage({ type: 'cancel' });
+        // Immediately apply the stored best puzzle and terminate the worker
+        if (this.currentBestPuzzle) {
+            // Clear the progress interval
+            if (this.generationProgressInterval) {
+                clearInterval(this.generationProgressInterval);
+                this.generationProgressInterval = null;
+            }
+            // Terminate the worker to stop generation immediately
+            if (this.generatorWorker) {
+                this.generatorWorker.terminate();
+                this.generatorWorker = null;
+            }
+            this.generationProgress.classList.add('hidden');
+            this.applyGeneratedPuzzle(this.currentBestPuzzle.grid, this.currentBestPuzzle.constraints);
+            this.currentBestPuzzle = null;
         }
-        this.useCurrentBest = true;
     }
 
     cancelGeneration() {
@@ -2540,7 +2738,7 @@ class FutoshikiGame {
         };
 
         // Update progress every 100ms
-        const progressInterval = setInterval(updateProgressBar, 100);
+        this.generationProgressInterval = setInterval(updateProgressBar, 100);
 
         // Set up message handler
         this.generatorWorker.onmessage = (e) => {
@@ -2548,18 +2746,22 @@ class FutoshikiGame {
 
             switch (type) {
                 case 'progress': {
-                    const { attempts, bestHintCount } = e.data;
+                    const { attempts, bestHintCount, bestGrid, bestConstraints } = e.data;
                     this.progressAttempts.textContent = attempts.toString();
                     if (bestHintCount !== null) {
                         this.progressBestHints.textContent = bestHintCount.toString();
                         this.progressBest.classList.remove('hidden');
                         this.useBestBtn.classList.remove('hidden');
+                        // Store best puzzle for immediate use when "Use Best" is clicked
+                        if (bestGrid && bestConstraints) {
+                            this.currentBestPuzzle = { grid: bestGrid, constraints: bestConstraints };
+                        }
                     }
                     break;
                 }
 
                 case 'complete': {
-                    clearInterval(progressInterval);
+                    clearInterval(this.generationProgressInterval);
                     this.generationProgress.classList.add('hidden');
 
                     const { grid, constraints } = e.data;
@@ -2568,16 +2770,17 @@ class FutoshikiGame {
                 }
 
                 case 'cancelled': {
-                    clearInterval(progressInterval);
-                    // If user wanted to use current best, check if we got a complete message before cancel
-                    if (!this.useCurrentBest) {
-                        this.generationProgress.classList.add('hidden');
+                    clearInterval(this.generationProgressInterval);
+                    this.generationProgress.classList.add('hidden');
+                    // If user wanted to use current best but there was none, show message
+                    if (this.useCurrentBest) {
+                        alert('No valid puzzle has been found yet. Please try again.');
                     }
                     break;
                 }
 
                 case 'error': {
-                    clearInterval(progressInterval);
+                    clearInterval(this.generationProgressInterval);
                     this.generationProgress.classList.add('hidden');
                     alert(e.data.message + ' Please try again.');
                     break;
@@ -2586,7 +2789,7 @@ class FutoshikiGame {
         };
 
         this.generatorWorker.onerror = (error) => {
-            clearInterval(progressInterval);
+            clearInterval(this.generationProgressInterval);
             this.generationProgress.classList.add('hidden');
             console.error('Generator worker error:', error);
             alert('An error occurred during puzzle generation. Please try again.');
@@ -2623,6 +2826,7 @@ class FutoshikiGame {
         this.gameContainer.classList.remove('hidden');
         this.solvabilityStatus.classList.remove('hidden');
         this.gameCounters.classList.remove('hidden');
+        this.inputRow.classList.remove('hidden');
         this.updateConstraintIndicators();
         this.onGameStarted();
         this.checkSolvability();
