@@ -158,6 +158,7 @@ class FutoshikiGame {
         this.entryControlsElement = document.getElementById('entry-controls');
         this.gameContainer = document.getElementById('game-container');
         this.gridElement = document.getElementById('grid');
+        this.numberPad = document.getElementById('number-pad');
         this.sizeSelect = document.getElementById('size-select');
         this.startBtn = document.getElementById('start-btn');
         this.newGameBtn = document.getElementById('new-game-btn');
@@ -947,6 +948,79 @@ class FutoshikiGame {
                 const cell = this.createCell(row, col);
                 this.gridElement.appendChild(cell);
             }
+        }
+
+        // Render number pad for mobile
+        this.renderNumberPad();
+    }
+
+    renderNumberPad() {
+        this.numberPad.innerHTML = '';
+
+        // Create digit buttons 1 to N
+        for (let d = 1; d <= this.size; d++) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'numpad-btn';
+            btn.textContent = d;
+            btn.addEventListener('click', () => this.onNumberPadClick(d));
+            this.numberPad.appendChild(btn);
+        }
+
+        // Create erase button with eraser icon (🧽 or ⌫)
+        const eraseBtn = document.createElement('button');
+        eraseBtn.type = 'button';
+        eraseBtn.className = 'numpad-btn erase-btn';
+        eraseBtn.innerHTML = '⌫';
+        eraseBtn.setAttribute('aria-label', 'Erase');
+        eraseBtn.addEventListener('click', () => this.onNumberPadClick(null));
+        this.numberPad.appendChild(eraseBtn);
+    }
+
+    onNumberPadClick(digit) {
+        // Find the currently focused cell
+        const focused = this.gridElement.querySelector('.cell-input:focus');
+        if (!focused) {
+            // If no cell is focused, focus the first empty cell
+            const firstEmpty = this.gridElement.querySelector('.cell-input:not(.given)');
+            if (firstEmpty) {
+                firstEmpty.focus();
+                this.handleNumberPadInput(firstEmpty, digit);
+            }
+            return;
+        }
+
+        // Don't allow editing given cells
+        if (focused.classList.contains('given')) {
+            return;
+        }
+
+        this.handleNumberPadInput(focused, digit);
+    }
+
+    handleNumberPadInput(input, digit) {
+        const row = parseInt(input.dataset.row);
+        const col = parseInt(input.dataset.col);
+
+        if (digit === null) {
+            // Erase
+            input.value = '';
+            this.grid[row][col] = null;
+            input.classList.remove('has-value', 'conflict');
+        } else {
+            // Set digit
+            input.value = digit;
+            this.grid[row][col] = digit;
+            input.classList.add('has-value');
+        }
+
+        this.checkConflicts();
+        this.updateAutoDigits();
+        this.updateDigitCompletionHighlighting(digit);
+
+        if (!this.entryMode) {
+            this.checkSolvability();
+            this.checkCompletion();
         }
     }
 
@@ -2411,7 +2485,7 @@ class FutoshikiGame {
         this.generationCancelled = false;
         this.useCurrentBest = false;
 
-        // Show progress bar, hide "Use Best" button initially
+        // Show progress bar immediately, hide "Use Best" button initially
         this.generationProgress.classList.remove('hidden');
         this.progressBar.style.width = '0%';
         this.progressAttempts.textContent = '0';
@@ -2419,8 +2493,13 @@ class FutoshikiGame {
         this.progressBest.classList.add('hidden');
         this.useBestBtn.classList.add('hidden');
 
-        // Start async generation
-        this.generatePuzzleAsync(difficulty);
+        // Use requestAnimationFrame to ensure the progress dialog is rendered
+        // before starting the heavy computation
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                this.generatePuzzleAsync(difficulty);
+            });
+        });
     }
 
     useBestPuzzle() {
@@ -2440,7 +2519,10 @@ class FutoshikiGame {
         let bestHintCount = Infinity;
         let attempts = 0;
         let successfulAttempts = 0;
-        let yieldCounter = 0;
+
+        // On mobile (narrower screens), yield every attempt for responsiveness
+        const isMobile = window.innerWidth <= 600;
+        const yieldFrequency = isMobile ? 1 : 3;
 
         const countTotalHints = (grid, constraints) => {
             let count = 0;
@@ -2484,11 +2566,9 @@ class FutoshikiGame {
                 }
 
                 attempts++;
-                yieldCounter++;
 
-                // Yield less frequently for speed (every 3 attempts)
-                if (yieldCounter >= 3) {
-                    yieldCounter = 0;
+                // Yield to allow UI updates (more frequently on mobile for responsiveness)
+                if (attempts % yieldFrequency === 0) {
                     await new Promise(resolve => setTimeout(resolve, 0));
                 }
 

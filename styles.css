@@ -739,4 +739,52 @@ button:hover {
         padding: 6px 12px;
         font-size: 13px;
     }
+
+    /* Number pad for mobile - shown only on small screens */
+    .number-pad {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        gap: 6px;
+        margin-top: 15px;
+        flex-wrap: wrap;
+        max-width: 100%;
+    }
+
+    .numpad-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+        font-weight: bold;
+        border: none;
+        border-radius: 6px;
+        background: #4299e1;
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .numpad-btn:hover,
+    .numpad-btn:active {
+        background: #3182ce;
+    }
+
+    .numpad-btn.erase-btn {
+        background: #e53e3e;
+        font-size: 20px;
+    }
+
+    .numpad-btn.erase-btn:hover,
+    .numpad-btn.erase-btn:active {
+        background: #c53030;
+    }
+}
+
+/* Hide number pad on larger screens */
+.number-pad {
+    display: none;
 }
