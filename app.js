@@ -176,8 +176,12 @@ class FutoshikiGame {
         this.progressBar = document.getElementById('progress-bar');
         this.progressAttempts = document.getElementById('progress-attempts');
         this.progressTime = document.getElementById('progress-time');
+        this.progressBest = document.getElementById('progress-best');
+        this.progressBestHints = document.getElementById('progress-best-hints');
+        this.useBestBtn = document.getElementById('use-best-btn');
         this.cancelGenerationBtn = document.getElementById('cancel-generation-btn');
         this.generationCancelled = false;
+        this.useCurrentBest = false;
 
         // Counter elements
         this.gameCounters = document.getElementById('game-counters');
@@ -208,6 +212,7 @@ class FutoshikiGame {
         this.generateMediumBtn.addEventListener('click', () => this.startPuzzleGeneration('medium'));
         this.generateHardBtn.addEventListener('click', () => this.startPuzzleGeneration('hard'));
         this.cancelGenerationBtn.addEventListener('click', () => this.cancelGeneration());
+        this.useBestBtn.addEventListener('click', () => this.useBestPuzzle());
         this.entryDoneBtn.addEventListener('click', () => this.finishEntry());
         this.entryCancelBtn.addEventListener('click', () => this.showSetup());
         this.shareBtn.addEventListener('click', () => this.sharePuzzle());
@@ -932,8 +937,10 @@ class FutoshikiGame {
 
     renderGrid() {
         this.gridElement.innerHTML = '';
-        this.gridElement.style.gridTemplateColumns = `repeat(${this.size}, 50px)`;
-        this.gridElement.style.gridTemplateRows = `repeat(${this.size}, 50px)`;
+        // Remove old grid-N classes and add current one for responsive scaling
+        this.gridElement.className = `grid grid-${this.size}`;
+        this.gridElement.style.gridTemplateColumns = `repeat(${this.size}, var(--cell-size, 50px))`;
+        this.gridElement.style.gridTemplateRows = `repeat(${this.size}, var(--cell-size, 50px))`;
 
         for (let row = 0; row < this.size; row++) {
             for (let col = 0; col < this.size; col++) {
@@ -2402,15 +2409,22 @@ class FutoshikiGame {
         this.entryMode = false;
         this.resetGameState();
         this.generationCancelled = false;
+        this.useCurrentBest = false;
 
-        // Show progress bar
+        // Show progress bar, hide "Use Best" button initially
         this.generationProgress.classList.remove('hidden');
         this.progressBar.style.width = '0%';
         this.progressAttempts.textContent = '0';
         this.progressTime.textContent = '0';
+        this.progressBest.classList.add('hidden');
+        this.useBestBtn.classList.add('hidden');
 
         // Start async generation
         this.generatePuzzleAsync(difficulty);
+    }
+
+    useBestPuzzle() {
+        this.useCurrentBest = true;
     }
 
     cancelGeneration() {
@@ -2423,9 +2437,29 @@ class FutoshikiGame {
         const maxTime = 30000; // 30 seconds timeout
 
         let bestPuzzle = null;
-        let bestGivenCount = Infinity;
+        let bestHintCount = Infinity;
         let attempts = 0;
         let successfulAttempts = 0;
+        let yieldCounter = 0;
+
+        const countTotalHints = (grid, constraints) => {
+            let count = 0;
+            // Count given digits
+            for (let row = 0; row < this.size; row++) {
+                for (let col = 0; col < this.size; col++) {
+                    if (grid[row][col] !== null) count++;
+                }
+            }
+            // Count constraints (triangles)
+            for (let row = 0; row < this.size; row++) {
+                for (let col = 0; col < this.size; col++) {
+                    const c = constraints[row][col];
+                    if (c.right) count++;
+                    if (c.bottom) count++;
+                }
+            }
+            return count;
+        };
 
         const updateProgress = () => {
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -2440,16 +2474,23 @@ class FutoshikiGame {
 
         try {
             while ((Date.now() - startTime) < maxTime) {
-                // Check for cancellation
+                // Check for cancellation or user wants to use current best
                 if (this.generationCancelled) {
                     clearInterval(progressInterval);
                     return;
                 }
+                if (this.useCurrentBest && bestPuzzle) {
+                    break;
+                }
 
                 attempts++;
+                yieldCounter++;
 
-                // Yield to allow UI updates
-                await new Promise(resolve => setTimeout(resolve, 0));
+                // Yield less frequently for speed (every 3 attempts)
+                if (yieldCounter >= 3) {
+                    yieldCounter = 0;
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
 
                 // Initialize fresh grid and constraints for this attempt
                 this.initializeGrid();
@@ -2467,23 +2508,21 @@ class FutoshikiGame {
 
                 successfulAttempts++;
 
-                // Count given cells
-                let givenCount = 0;
-                for (let row = 0; row < this.size; row++) {
-                    for (let col = 0; col < this.size; col++) {
-                        if (this.grid[row][col] !== null) {
-                            givenCount++;
-                        }
-                    }
-                }
+                // Count total hints (givens + constraints)
+                const hintCount = countTotalHints(this.grid, this.constraints);
 
-                // Keep this puzzle if it has fewer givens
-                if (givenCount < bestGivenCount) {
-                    bestGivenCount = givenCount;
+                // Keep this puzzle if it has fewer total hints
+                if (hintCount < bestHintCount) {
+                    bestHintCount = hintCount;
                     bestPuzzle = {
                         grid: this.grid.map(row => [...row]),
                         constraints: this.constraints.map(row => row.map(c => ({ ...c })))
                     };
+
+                    // Show the "Use Best" button and best hint count
+                    this.progressBestHints.textContent = hintCount.toString();
+                    this.progressBest.classList.remove('hidden');
+                    this.useBestBtn.classList.remove('hidden');
                 }
 
                 // Update progress display
