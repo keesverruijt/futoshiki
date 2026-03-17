@@ -267,6 +267,21 @@ button:hover {
     background: #c53030;
 }
 
+.input-btn.undo-btn {
+    background: #718096;
+    font-size: 24px;
+}
+
+.input-btn.undo-btn:hover {
+    background: #4a5568;
+}
+
+.input-btn.undo-btn:disabled {
+    background: #a0aec0;
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .input-btn.mode-btn {
     background: #805ad5;
     padding: 4px;
