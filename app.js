@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
-// Firebase configuration - Replace with your Firebase project config
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Backend configuration
+// Set USE_LOCAL_API to true when running with Docker/MySQL backend
+// Set to false to use Firebase (requires Firebase scripts in index.html)
+const USE_LOCAL_API = typeof FUTOSHIKI_USE_LOCAL_API !== 'undefined' ? FUTOSHIKI_USE_LOCAL_API : false;
+const API_BASE_URL = typeof FUTOSHIKI_API_URL !== 'undefined' ? FUTOSHIKI_API_URL : '/api';
+
+// Firebase configuration (only used when USE_LOCAL_API is false)
 const firebaseConfig = {
     apiKey: "AIzaSyBzRhFeZiZTYpBspnogQQvwyIMRr-I16As",
     authDomain: "futoshiki-helper.firebaseapp.com",
@@ -28,19 +32,20 @@ const firebaseConfig = {
     measurementId: "G-MB65MM4SBE"
 };
 
-
-// Initialize Firebase
+// Initialize Firebase (only if not using local API)
 let firebaseDb = null;
 let firebaseInitialized = false;
 
-try {
-    if (typeof firebase !== 'undefined') {
-        firebase.initializeApp(firebaseConfig);
-        firebaseDb = firebase.database();
-        firebaseInitialized = true;
+if (!USE_LOCAL_API) {
+    try {
+        if (typeof firebase !== 'undefined') {
+            firebase.initializeApp(firebaseConfig);
+            firebaseDb = firebase.database();
+            firebaseInitialized = true;
+        }
+    } catch (error) {
+        console.warn('Firebase initialization failed:', error);
     }
-} catch (error) {
-    console.warn('Firebase initialization failed:', error);
 }
 
 // ========== OFFLINE QUEUE MANAGEMENT ==========
@@ -77,7 +82,11 @@ function addToOfflineQueue(size, solveTime) {
 }
 
 async function syncOfflineQueue() {
-    if (!firebaseInitialized || !firebaseDb || !navigator.onLine) {
+    if (!navigator.onLine) {
+        return;
+    }
+
+    if (!USE_LOCAL_API && (!firebaseInitialized || !firebaseDb)) {
         return;
     }
 
@@ -100,17 +109,30 @@ async function syncOfflineQueue() {
     // Apply aggregated updates
     const failedItems = [];
     for (const [size, stats] of updatesBySize) {
-        const statsRef = firebaseDb.ref(`stats/${size}`);
         try {
-            await statsRef.transaction((current) => {
-                if (current === null) {
-                    return { completed: stats.completed, totalTime: stats.totalTime };
+            if (USE_LOCAL_API) {
+                // Use local API - send each completion individually
+                for (let i = 0; i < stats.completed; i++) {
+                    const avgTime = Math.round(stats.totalTime / stats.completed);
+                    await fetch(`${API_BASE_URL}/stats.php`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ size, solveTime: avgTime })
+                    });
                 }
-                return {
-                    completed: (current.completed || 0) + stats.completed,
-                    totalTime: (current.totalTime || 0) + stats.totalTime
-                };
-            });
+            } else {
+                // Use Firebase
+                const statsRef = firebaseDb.ref(`stats/${size}`);
+                await statsRef.transaction((current) => {
+                    if (current === null) {
+                        return { completed: stats.completed, totalTime: stats.totalTime };
+                    }
+                    return {
+                        completed: (current.completed || 0) + stats.completed,
+                        totalTime: (current.totalTime || 0) + stats.totalTime
+                    };
+                });
+            }
         } catch (error) {
             console.warn(`Failed to sync stats for size ${size}:`, error);
             // Keep failed items for retry
@@ -126,7 +148,7 @@ async function syncOfflineQueue() {
     saveOfflineQueue(failedItems);
 
     if (failedItems.length === 0 && queue.length > 0) {
-        console.log(`Synced ${queue.length} offline stats to Firebase`);
+        console.log(`Synced ${queue.length} offline stats`);
     }
 }
 
@@ -506,6 +528,14 @@ class FutoshikiGame {
             this.currentFirebaseUnsubscribe = null;
         }
 
+        if (USE_LOCAL_API) {
+            // Use local API - poll periodically
+            this.fetchGlobalStats();
+            const intervalId = setInterval(() => this.fetchGlobalStats(), 30000); // Poll every 30s
+            this.currentFirebaseUnsubscribe = () => clearInterval(intervalId);
+            return;
+        }
+
         if (!firebaseInitialized || !firebaseDb) {
             return;
         }
@@ -526,11 +556,52 @@ class FutoshikiGame {
         this.currentFirebaseUnsubscribe = () => statsRef.off('value', callback);
     }
 
+    async fetchGlobalStats() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/stats.php?size=${this.size}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (this.globalAvgTimeElement && data) {
+                    const avgTime = data.completed > 0 ? data.totalTime / data.completed : null;
+                    this.globalAvgTimeElement.textContent = this.formatTime(avgTime);
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to fetch global stats:', error);
+        }
+    }
+
     async updateGlobalStats(size, solveTime) {
-        // If offline or Firebase not available, queue for later
-        if (!navigator.onLine || !firebaseInitialized || !firebaseDb) {
+        // If offline, queue for later
+        if (!navigator.onLine) {
             addToOfflineQueue(size, solveTime);
             console.log('Offline - queued stats for later sync');
+            return;
+        }
+
+        if (USE_LOCAL_API) {
+            // Use local API
+            try {
+                const response = await fetch(`${API_BASE_URL}/stats.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ size, solveTime })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                // Refresh display with new stats
+                this.fetchGlobalStats();
+            } catch (error) {
+                console.warn('Failed to update global stats, queuing for later:', error);
+                addToOfflineQueue(size, solveTime);
+            }
+            return;
+        }
+
+        // Use Firebase
+        if (!firebaseInitialized || !firebaseDb) {
+            addToOfflineQueue(size, solveTime);
             return;
         }
 
