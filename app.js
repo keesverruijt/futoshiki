@@ -212,6 +212,11 @@ class FutoshikiGame {
         this.eraserBtn = document.getElementById('eraser-btn');
         this.candidateMode = false;
 
+        // Undo history
+        this.undoBtn = document.getElementById('undo-btn');
+        this.moveHistory = [];
+        this.maxHistorySize = 100;
+
         this.bindEvents();
     }
 
@@ -233,8 +238,181 @@ class FutoshikiGame {
         this.candidateModeBtn.addEventListener('click', () => this.toggleCandidateMode());
         this.eraserBtn.addEventListener('click', () => this.onEraserClick());
 
+        // Undo button
+        this.undoBtn.addEventListener('click', () => this.undo());
+
+        // Keyboard shortcut for undo (Ctrl+Z / Cmd+Z)
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                this.undo();
+            }
+        });
+
         // Check for puzzle in URL on load
         this.restorePuzzleFromURL();
+    }
+
+    // ========== UNDO HISTORY METHODS ==========
+
+    /**
+     * Capture the current state for undo history
+     */
+    captureState() {
+        return {
+            grid: this.grid.map(row => [...row]),
+            constraints: this.constraints.map(row => row.map(c => ({ ...c }))),
+            candidateMarks: this.captureCandidateMarks()
+        };
+    }
+
+    /**
+     * Capture candidate mark eliminations from the DOM
+     */
+    captureCandidateMarks() {
+        const marks = {};
+        for (let row = 0; row < this.size; row++) {
+            for (let col = 0; col < this.size; col++) {
+                const cell = this.gridElement.querySelector(`.grid-cell[data-row="${row}"][data-col="${col}"]`);
+                if (!cell) continue;
+                const autoDigitsContainer = cell.querySelector('.auto-digits');
+                if (!autoDigitsContainer) continue;
+
+                const eliminated = [];
+                for (let d = 1; d <= this.size; d++) {
+                    const digitSpan = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${d}"]`);
+                    if (digitSpan && digitSpan.classList.contains('eliminated')) {
+                        eliminated.push(d);
+                    }
+                }
+                if (eliminated.length > 0) {
+                    marks[`${row},${col}`] = eliminated;
+                }
+            }
+        }
+        return marks;
+    }
+
+    /**
+     * Save current state to history before making a change
+     */
+    saveToHistory() {
+        // Don't save during entry mode or when puzzle is completed
+        if (this.entryMode || this.puzzleCompleted) return;
+
+        const state = this.captureState();
+        this.moveHistory.push(state);
+
+        // Limit history size
+        if (this.moveHistory.length > this.maxHistorySize) {
+            this.moveHistory.shift();
+        }
+
+        this.updateUndoButton();
+    }
+
+    /**
+     * Undo the last move
+     */
+    undo() {
+        if (this.moveHistory.length === 0 || this.entryMode) return;
+
+        const state = this.moveHistory.pop();
+        this.restoreState(state);
+        this.updateUndoButton();
+    }
+
+    /**
+     * Restore a previously saved state
+     */
+    restoreState(state) {
+        // Restore grid values
+        for (let row = 0; row < this.size; row++) {
+            for (let col = 0; col < this.size; col++) {
+                this.grid[row][col] = state.grid[row][col];
+                const input = this.gridElement.querySelector(`.cell-input[data-row="${row}"][data-col="${col}"]`);
+                if (input) {
+                    if (state.grid[row][col] !== null) {
+                        input.value = state.grid[row][col];
+                        input.classList.add('has-value');
+                    } else {
+                        input.value = '';
+                        input.classList.remove('has-value');
+                    }
+                }
+            }
+        }
+
+        // Restore constraints
+        for (let row = 0; row < this.size; row++) {
+            for (let col = 0; col < this.size; col++) {
+                this.constraints[row][col] = { ...state.constraints[row][col] };
+            }
+        }
+
+        // Restore candidate marks
+        this.restoreCandidateMarks(state.candidateMarks);
+
+        // Update display
+        this.updateAutoDigits();
+        this.updateConflictDisplay();
+        this.updateAllCompletedDigits();
+        this.checkSolvability();
+    }
+
+    /**
+     * Restore candidate mark eliminations to the DOM
+     */
+    restoreCandidateMarks(marks) {
+        // First clear all eliminations
+        for (let row = 0; row < this.size; row++) {
+            for (let col = 0; col < this.size; col++) {
+                const cell = this.gridElement.querySelector(`.grid-cell[data-row="${row}"][data-col="${col}"]`);
+                if (!cell) continue;
+                const autoDigitsContainer = cell.querySelector('.auto-digits');
+                if (!autoDigitsContainer) continue;
+
+                for (let d = 1; d <= this.size; d++) {
+                    const digitSpan = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${d}"]`);
+                    if (digitSpan) {
+                        digitSpan.classList.remove('eliminated');
+                    }
+                }
+            }
+        }
+
+        // Then restore saved eliminations
+        for (const key in marks) {
+            const [row, col] = key.split(',').map(Number);
+            const cell = this.gridElement.querySelector(`.grid-cell[data-row="${row}"][data-col="${col}"]`);
+            if (!cell) continue;
+            const autoDigitsContainer = cell.querySelector('.auto-digits');
+            if (!autoDigitsContainer) continue;
+
+            for (const digit of marks[key]) {
+                const digitSpan = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${digit}"]`);
+                if (digitSpan) {
+                    digitSpan.classList.add('eliminated');
+                }
+            }
+        }
+    }
+
+    /**
+     * Update undo button state
+     */
+    updateUndoButton() {
+        if (this.undoBtn) {
+            this.undoBtn.disabled = this.moveHistory.length === 0;
+        }
+    }
+
+    /**
+     * Clear history (when starting a new game)
+     */
+    clearHistory() {
+        this.moveHistory = [];
+        this.updateUndoButton();
     }
 
     // ========== COUNTER AND TIMER METHODS ==========
@@ -617,6 +795,9 @@ class FutoshikiGame {
         this.controlsElement.classList.remove('hidden');
         this.gameCounters.classList.remove('hidden');
         this.inputRow.classList.remove('hidden');
+
+        // Clear undo history when starting to solve
+        this.clearHistory();
 
         // Start the timer now that solving begins
         this.onGameStarted();
@@ -1059,9 +1240,11 @@ class FutoshikiGame {
 
         if (this.candidateMode && !this.entryMode) {
             // In candidate mode, toggle the candidate for this digit
+            this.saveToHistory();
             this.toggleCandidate(row, col, digit);
         } else {
             // Normal mode - set the digit (same flow as keyboard input)
+            this.saveToHistory();
             this.grid[row][col] = digit;
             input.value = digit;
             input.classList.add('has-value');
@@ -1120,6 +1303,8 @@ class FutoshikiGame {
             return;
         }
 
+        this.saveToHistory();
+
         if (this.candidateMode) {
             // In candidate mode, clear all eliminations for this cell
             this.clearCandidateEliminations(row, col);
@@ -1173,6 +1358,8 @@ class FutoshikiGame {
     handleNumberPadInput(input, digit) {
         const row = parseInt(input.dataset.row);
         const col = parseInt(input.dataset.col);
+
+        this.saveToHistory();
 
         if (digit === null) {
             // Erase
@@ -1277,10 +1464,12 @@ class FutoshikiGame {
             // In candidate mode, clear all candidate eliminations for this cell
             if (this.candidateMode && !this.entryMode) {
                 e.preventDefault();
+                this.saveToHistory();
                 this.clearCandidateEliminations(row, col);
                 return;
             }
 
+            this.saveToHistory();
             this.grid[row][col] = null;
             e.target.value = '';
             e.target.classList.remove('has-value');
@@ -1308,10 +1497,12 @@ class FutoshikiGame {
 
             // In candidate mode, toggle the candidate instead of setting the value
             if (this.candidateMode && !this.entryMode) {
+                this.saveToHistory();
                 this.toggleCandidate(row, col, num);
                 return;
             }
 
+            this.saveToHistory();
             this.grid[row][col] = num;
             e.target.value = num;
             e.target.classList.add('has-value');
@@ -1338,6 +1529,8 @@ class FutoshikiGame {
             e.target.value = this.grid[row][col];
             return;
         }
+
+        this.saveToHistory();
 
         // Handle paste or other input methods
         const value = e.target.value;
@@ -3306,6 +3499,7 @@ class FutoshikiGame {
         this.gameCounters.classList.remove('hidden');
         this.inputRow.classList.remove('hidden');
         this.updateConstraintIndicators();
+        this.clearHistory();
         this.onGameStarted();
         this.checkSolvability();
     }
