@@ -1833,6 +1833,16 @@ class FutoshikiGame {
                     message = 'Look for two cells with the same two candidates';
                     detailMessage = `Eliminate ${[...eliminated].join(', ')} from this cell (naked pair: ${pairDigits.join(', ')})`;
                     break;
+                case 'nakedTriplet':
+                    strategy = 'Naked Triplet';
+                    message = 'Look for three cells whose candidates are limited to three digits';
+                    detailMessage = `Eliminate ${[...eliminated].join(', ')} from this cell (naked triplet: ${advancedResult.tripletDigits.join(', ')})`;
+                    break;
+                case 'nakedQuadruplet':
+                    strategy = 'Naked Quadruplet';
+                    message = 'Look for four cells whose candidates are limited to four digits';
+                    detailMessage = `Eliminate ${[...eliminated].join(', ')} from this cell (naked quadruplet: ${advancedResult.quadDigits.join(', ')})`;
+                    break;
                 case 'hiddenPair':
                     strategy = 'Hidden Pair';
                     message = 'Look for two digits that only appear in two cells';
@@ -1842,6 +1852,16 @@ class FutoshikiGame {
                     strategy = 'X-Wing';
                     message = `Look for ${digit} forming a rectangle pattern in rows/columns`;
                     detailMessage = `Eliminate ${digit} from this cell (X-Wing pattern)`;
+                    break;
+                case 'hiddenTriplet':
+                    strategy = 'Hidden Triplet';
+                    message = 'Look for three digits that only appear in three cells';
+                    detailMessage = `Keep only ${advancedResult.tripletDigits.join(', ')} in this cell`;
+                    break;
+                case 'hiddenQuadruplet':
+                    strategy = 'Hidden Quadruplet';
+                    message = 'Look for four digits that only appear in four cells';
+                    detailMessage = `Keep only ${advancedResult.quadDigits.join(', ')} in this cell`;
                     break;
             }
 
@@ -2427,6 +2447,200 @@ class FutoshikiGame {
     }
 
     /**
+     * Naked Triplets Strategy:
+     * If 3 cells in a row/column together contain only 3 candidates total,
+     * eliminate those 3 digits from all other cells in the line.
+     */
+    findNakedTriplets() {
+        const pencilMarks = this.getAllPencilMarks();
+
+        // Check rows
+        for (let row = 0; row < this.size; row++) {
+            const result = this.findNakedTripletsInLine(pencilMarks, row, 'row');
+            if (result) return result;
+        }
+
+        // Check columns
+        for (let col = 0; col < this.size; col++) {
+            const result = this.findNakedTripletsInLine(pencilMarks, col, 'col');
+            if (result) return result;
+        }
+
+        return null;
+    }
+
+    findNakedTripletsInLine(pencilMarks, index, type) {
+        // Get all cells in this line with 2 or 3 candidates
+        const candidateCells = [];
+
+        for (let i = 0; i < this.size; i++) {
+            const row = type === 'row' ? index : i;
+            const col = type === 'row' ? i : index;
+            const key = `${row},${col}`;
+
+            if (pencilMarks.has(key)) {
+                const marks = pencilMarks.get(key);
+                if (marks.size >= 2 && marks.size <= 3) {
+                    candidateCells.push({ row, col, marks: new Set(marks) });
+                }
+            }
+        }
+
+        // Find 3 cells whose combined candidates are exactly 3 digits
+        for (let i = 0; i < candidateCells.length; i++) {
+            for (let j = i + 1; j < candidateCells.length; j++) {
+                for (let k = j + 1; k < candidateCells.length; k++) {
+                    const combined = new Set([
+                        ...candidateCells[i].marks,
+                        ...candidateCells[j].marks,
+                        ...candidateCells[k].marks
+                    ]);
+
+                    if (combined.size === 3) {
+                        // Found a naked triplet! Eliminate from other cells
+                        const tripletDigits = [...combined];
+                        const tripletPositions = new Set([
+                            `${candidateCells[i].row},${candidateCells[i].col}`,
+                            `${candidateCells[j].row},${candidateCells[j].col}`,
+                            `${candidateCells[k].row},${candidateCells[k].col}`
+                        ]);
+
+                        for (let m = 0; m < this.size; m++) {
+                            const row = type === 'row' ? index : m;
+                            const col = type === 'row' ? m : index;
+                            const key = `${row},${col}`;
+
+                            if (!tripletPositions.has(key) && pencilMarks.has(key)) {
+                                const marks = pencilMarks.get(key);
+                                const eliminated = new Set();
+
+                                for (const digit of tripletDigits) {
+                                    if (marks.has(digit)) {
+                                        eliminated.add(digit);
+                                    }
+                                }
+
+                                if (eliminated.size > 0) {
+                                    return {
+                                        type: 'nakedTriplet',
+                                        tripletCells: [candidateCells[i], candidateCells[j], candidateCells[k]],
+                                        affectedCell: { row, col },
+                                        eliminated,
+                                        tripletDigits
+                                    };
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Naked Quadruplets Strategy:
+     * If 4 cells in a row/column together contain only 4 candidates total,
+     * eliminate those 4 digits from all other cells in the line.
+     * Most useful for larger grids (7x7, 8x8, 9x9).
+     */
+    findNakedQuadruplets() {
+        // Only useful for grids 7x7 or larger
+        if (this.size < 7) return null;
+
+        const pencilMarks = this.getAllPencilMarks();
+
+        // Check rows
+        for (let row = 0; row < this.size; row++) {
+            const result = this.findNakedQuadrupletsInLine(pencilMarks, row, 'row');
+            if (result) return result;
+        }
+
+        // Check columns
+        for (let col = 0; col < this.size; col++) {
+            const result = this.findNakedQuadrupletsInLine(pencilMarks, col, 'col');
+            if (result) return result;
+        }
+
+        return null;
+    }
+
+    findNakedQuadrupletsInLine(pencilMarks, index, type) {
+        // Get all cells in this line with 2, 3, or 4 candidates
+        const candidateCells = [];
+
+        for (let i = 0; i < this.size; i++) {
+            const row = type === 'row' ? index : i;
+            const col = type === 'row' ? i : index;
+            const key = `${row},${col}`;
+
+            if (pencilMarks.has(key)) {
+                const marks = pencilMarks.get(key);
+                if (marks.size >= 2 && marks.size <= 4) {
+                    candidateCells.push({ row, col, marks: new Set(marks) });
+                }
+            }
+        }
+
+        // Find 4 cells whose combined candidates are exactly 4 digits
+        for (let i = 0; i < candidateCells.length; i++) {
+            for (let j = i + 1; j < candidateCells.length; j++) {
+                for (let k = j + 1; k < candidateCells.length; k++) {
+                    for (let l = k + 1; l < candidateCells.length; l++) {
+                        const combined = new Set([
+                            ...candidateCells[i].marks,
+                            ...candidateCells[j].marks,
+                            ...candidateCells[k].marks,
+                            ...candidateCells[l].marks
+                        ]);
+
+                        if (combined.size === 4) {
+                            // Found a naked quadruplet! Eliminate from other cells
+                            const quadDigits = [...combined];
+                            const quadPositions = new Set([
+                                `${candidateCells[i].row},${candidateCells[i].col}`,
+                                `${candidateCells[j].row},${candidateCells[j].col}`,
+                                `${candidateCells[k].row},${candidateCells[k].col}`,
+                                `${candidateCells[l].row},${candidateCells[l].col}`
+                            ]);
+
+                            for (let m = 0; m < this.size; m++) {
+                                const row = type === 'row' ? index : m;
+                                const col = type === 'row' ? m : index;
+                                const key = `${row},${col}`;
+
+                                if (!quadPositions.has(key) && pencilMarks.has(key)) {
+                                    const marks = pencilMarks.get(key);
+                                    const eliminated = new Set();
+
+                                    for (const digit of quadDigits) {
+                                        if (marks.has(digit)) {
+                                            eliminated.add(digit);
+                                        }
+                                    }
+
+                                    if (eliminated.size > 0) {
+                                        return {
+                                            type: 'nakedQuadruplet',
+                                            quadCells: [candidateCells[i], candidateCells[j], candidateCells[k], candidateCells[l]],
+                                            affectedCell: { row, col },
+                                            eliminated,
+                                            quadDigits
+                                        };
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Hidden Pairs/Subsets Strategy:
      * If certain digits can only appear in a limited set of cells within a row/column,
      * other digits can be eliminated from those cells.
@@ -2520,6 +2734,252 @@ class FutoshikiGame {
                                         affectedCell: cell,
                                         eliminated
                                     };
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Hidden Triplets Strategy:
+     * If 3 digits can only appear in exactly 3 cells within a row/column,
+     * eliminate all other digits from those 3 cells.
+     */
+    findHiddenTriplets() {
+        const pencilMarks = this.getAllPencilMarks();
+
+        // Check rows
+        for (let row = 0; row < this.size; row++) {
+            const result = this.findHiddenTripletsInLine(pencilMarks, row, 'row');
+            if (result) return result;
+        }
+
+        // Check columns
+        for (let col = 0; col < this.size; col++) {
+            const result = this.findHiddenTripletsInLine(pencilMarks, col, 'col');
+            if (result) return result;
+        }
+
+        return null;
+    }
+
+    findHiddenTripletsInLine(pencilMarks, index, type) {
+        // Build a map of digit -> cells where it can appear
+        const digitToCells = new Map();
+
+        for (let d = 1; d <= this.size; d++) {
+            digitToCells.set(d, []);
+        }
+
+        for (let i = 0; i < this.size; i++) {
+            const row = type === 'row' ? index : i;
+            const col = type === 'row' ? i : index;
+            const key = `${row},${col}`;
+
+            // Skip filled cells
+            if (this.grid[row][col] !== null) {
+                digitToCells.delete(this.grid[row][col]);
+                continue;
+            }
+
+            if (pencilMarks.has(key)) {
+                const marks = pencilMarks.get(key);
+                for (const digit of marks) {
+                    if (digitToCells.has(digit)) {
+                        digitToCells.get(digit).push({ row, col });
+                    }
+                }
+            }
+        }
+
+        // Find triplets of digits that appear in exactly 2 or 3 cells,
+        // and those cells are the same 3 cells for all 3 digits
+        const digits = [...digitToCells.keys()].filter(d => {
+            const cells = digitToCells.get(d);
+            return cells.length >= 2 && cells.length <= 3;
+        });
+
+        for (let i = 0; i < digits.length; i++) {
+            for (let j = i + 1; j < digits.length; j++) {
+                for (let k = j + 1; k < digits.length; k++) {
+                    const d1 = digits[i];
+                    const d2 = digits[j];
+                    const d3 = digits[k];
+
+                    // Collect all unique cells where these 3 digits appear
+                    const cellSet = new Set();
+                    for (const cell of digitToCells.get(d1)) {
+                        cellSet.add(`${cell.row},${cell.col}`);
+                    }
+                    for (const cell of digitToCells.get(d2)) {
+                        cellSet.add(`${cell.row},${cell.col}`);
+                    }
+                    for (const cell of digitToCells.get(d3)) {
+                        cellSet.add(`${cell.row},${cell.col}`);
+                    }
+
+                    // If exactly 3 cells contain all 3 digits, it's a hidden triplet
+                    if (cellSet.size === 3) {
+                        const tripletDigits = new Set([d1, d2, d3]);
+                        const tripletCells = [...cellSet].map(key => {
+                            const [row, col] = key.split(',').map(Number);
+                            return { row, col };
+                        });
+
+                        // Check if we can eliminate other digits from these cells
+                        for (const cell of tripletCells) {
+                            const key = `${cell.row},${cell.col}`;
+                            const marks = pencilMarks.get(key);
+
+                            if (marks && marks.size > 3) {
+                                const eliminated = new Set();
+                                for (const digit of marks) {
+                                    if (!tripletDigits.has(digit)) {
+                                        eliminated.add(digit);
+                                    }
+                                }
+
+                                if (eliminated.size > 0) {
+                                    return {
+                                        type: 'hiddenTriplet',
+                                        tripletDigits: [d1, d2, d3],
+                                        tripletCells,
+                                        affectedCell: cell,
+                                        eliminated
+                                    };
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Hidden Quadruplets Strategy:
+     * If 4 digits can only appear in exactly 4 cells within a row/column,
+     * eliminate all other digits from those 4 cells.
+     * Most useful for larger grids (7x7, 8x8, 9x9).
+     */
+    findHiddenQuadruplets() {
+        // Only useful for grids 7x7 or larger
+        if (this.size < 7) return null;
+
+        const pencilMarks = this.getAllPencilMarks();
+
+        // Check rows
+        for (let row = 0; row < this.size; row++) {
+            const result = this.findHiddenQuadrupletsInLine(pencilMarks, row, 'row');
+            if (result) return result;
+        }
+
+        // Check columns
+        for (let col = 0; col < this.size; col++) {
+            const result = this.findHiddenQuadrupletsInLine(pencilMarks, col, 'col');
+            if (result) return result;
+        }
+
+        return null;
+    }
+
+    findHiddenQuadrupletsInLine(pencilMarks, index, type) {
+        // Build a map of digit -> cells where it can appear
+        const digitToCells = new Map();
+
+        for (let d = 1; d <= this.size; d++) {
+            digitToCells.set(d, []);
+        }
+
+        for (let i = 0; i < this.size; i++) {
+            const row = type === 'row' ? index : i;
+            const col = type === 'row' ? i : index;
+            const key = `${row},${col}`;
+
+            // Skip filled cells
+            if (this.grid[row][col] !== null) {
+                digitToCells.delete(this.grid[row][col]);
+                continue;
+            }
+
+            if (pencilMarks.has(key)) {
+                const marks = pencilMarks.get(key);
+                for (const digit of marks) {
+                    if (digitToCells.has(digit)) {
+                        digitToCells.get(digit).push({ row, col });
+                    }
+                }
+            }
+        }
+
+        // Find quadruplets of digits that appear in 2-4 cells,
+        // and those cells are the same 4 cells for all 4 digits
+        const digits = [...digitToCells.keys()].filter(d => {
+            const cells = digitToCells.get(d);
+            return cells.length >= 2 && cells.length <= 4;
+        });
+
+        for (let i = 0; i < digits.length; i++) {
+            for (let j = i + 1; j < digits.length; j++) {
+                for (let k = j + 1; k < digits.length; k++) {
+                    for (let l = k + 1; l < digits.length; l++) {
+                        const d1 = digits[i];
+                        const d2 = digits[j];
+                        const d3 = digits[k];
+                        const d4 = digits[l];
+
+                        // Collect all unique cells where these 4 digits appear
+                        const cellSet = new Set();
+                        for (const cell of digitToCells.get(d1)) {
+                            cellSet.add(`${cell.row},${cell.col}`);
+                        }
+                        for (const cell of digitToCells.get(d2)) {
+                            cellSet.add(`${cell.row},${cell.col}`);
+                        }
+                        for (const cell of digitToCells.get(d3)) {
+                            cellSet.add(`${cell.row},${cell.col}`);
+                        }
+                        for (const cell of digitToCells.get(d4)) {
+                            cellSet.add(`${cell.row},${cell.col}`);
+                        }
+
+                        // If exactly 4 cells contain all 4 digits, it's a hidden quadruplet
+                        if (cellSet.size === 4) {
+                            const quadDigits = new Set([d1, d2, d3, d4]);
+                            const quadCells = [...cellSet].map(key => {
+                                const [row, col] = key.split(',').map(Number);
+                                return { row, col };
+                            });
+
+                            // Check if we can eliminate other digits from these cells
+                            for (const cell of quadCells) {
+                                const key = `${cell.row},${cell.col}`;
+                                const marks = pencilMarks.get(key);
+
+                                if (marks && marks.size > 4) {
+                                    const eliminated = new Set();
+                                    for (const digit of marks) {
+                                        if (!quadDigits.has(digit)) {
+                                            eliminated.add(digit);
+                                        }
+                                    }
+
+                                    if (eliminated.size > 0) {
+                                        return {
+                                            type: 'hiddenQuadruplet',
+                                            quadDigits: [d1, d2, d3, d4],
+                                            quadCells,
+                                            affectedCell: cell,
+                                            eliminated
+                                        };
+                                    }
                                 }
                             }
                         }
@@ -2633,6 +3093,22 @@ class FutoshikiGame {
         // Try Hidden Pairs
         const hiddenPair = this.findHiddenPairs();
         if (hiddenPair) return hiddenPair;
+
+        // Try Naked Triplets
+        const nakedTriplet = this.findNakedTriplets();
+        if (nakedTriplet) return nakedTriplet;
+
+        // Try Hidden Triplets
+        const hiddenTriplet = this.findHiddenTriplets();
+        if (hiddenTriplet) return hiddenTriplet;
+
+        // Try Naked Quadruplets (7x7 and larger)
+        const nakedQuadruplet = this.findNakedQuadruplets();
+        if (nakedQuadruplet) return nakedQuadruplet;
+
+        // Try Hidden Quadruplets (7x7 and larger)
+        const hiddenQuadruplet = this.findHiddenQuadruplets();
+        if (hiddenQuadruplet) return hiddenQuadruplet;
 
         // Try X-Wing
         const xWing = this.findXWing();

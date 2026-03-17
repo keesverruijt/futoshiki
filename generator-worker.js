@@ -371,13 +371,17 @@ function generatePuzzleForDifficulty(solution, difficulty) {
     }
 
     // Check difficulty requirements
-    // Strategy hierarchy: nakedSingle < hiddenSingle < nakedPair < hiddenPair < xWing
+    // Strategy hierarchy: nakedSingle < hiddenSingle < nakedPair < hiddenPair < nakedTriplet < hiddenTriplet < nakedQuadruplet < hiddenQuadruplet < xWing
     const strategyLevel = {
         'nakedSingle': 1,
         'hiddenSingle': 2,
         'nakedPair': 3,
         'hiddenPair': 4,
-        'xWing': 5
+        'nakedTriplet': 5,
+        'hiddenTriplet': 6,
+        'nakedQuadruplet': 7,
+        'hiddenQuadruplet': 8,
+        'xWing': 9
     };
     const level = strategyLevel[finalAnalysis.maxStrategyRequired] || 0;
 
@@ -385,10 +389,10 @@ function generatePuzzleForDifficulty(solution, difficulty) {
         // Easy: only naked singles
         if (level > 1) return false;
     } else if (difficulty === 'medium') {
-        // Medium: requires at least hidden singles, but no X-Wing
+        // Medium: requires at least hidden singles, but not advanced strategies
         if (level < 2 || level > 4) return false;
     } else if (difficulty === 'hard') {
-        // Hard: requires at least hidden pairs or X-Wing
+        // Hard: requires at least hidden pairs or more advanced strategies
         if (level < 4) return false;
     }
 
@@ -577,6 +581,42 @@ function analyzePuzzleDifficulty() {
         if (hiddenPair) {
             if (maxStrategy === 'nakedSingle' || maxStrategy === 'hiddenSingle' || maxStrategy === 'nakedPair') {
                 maxStrategy = 'hiddenPair';
+            }
+            continue;
+        }
+
+        // Try naked triplets
+        const nakedTriplet = findNakedTriplets();
+        if (nakedTriplet) {
+            if (['nakedSingle', 'hiddenSingle', 'nakedPair', 'hiddenPair'].includes(maxStrategy)) {
+                maxStrategy = 'nakedTriplet';
+            }
+            continue;
+        }
+
+        // Try hidden triplets
+        const hiddenTriplet = findHiddenTriplets();
+        if (hiddenTriplet) {
+            if (['nakedSingle', 'hiddenSingle', 'nakedPair', 'hiddenPair', 'nakedTriplet'].includes(maxStrategy)) {
+                maxStrategy = 'hiddenTriplet';
+            }
+            continue;
+        }
+
+        // Try naked quadruplets (7x7 and larger)
+        const nakedQuadruplet = findNakedQuadruplets();
+        if (nakedQuadruplet) {
+            if (['nakedSingle', 'hiddenSingle', 'nakedPair', 'hiddenPair', 'nakedTriplet', 'hiddenTriplet'].includes(maxStrategy)) {
+                maxStrategy = 'nakedQuadruplet';
+            }
+            continue;
+        }
+
+        // Try hidden quadruplets (7x7 and larger)
+        const hiddenQuadruplet = findHiddenQuadruplets();
+        if (hiddenQuadruplet) {
+            if (maxStrategy !== 'xWing') {
+                maxStrategy = 'hiddenQuadruplet';
             }
             continue;
         }
@@ -938,6 +978,166 @@ function findNakedPairsInLine(pencilMarks, index, type) {
     return null;
 }
 
+function findNakedTriplets() {
+    const pencilMarks = getAllPencilMarks();
+
+    for (let row = 0; row < size; row++) {
+        const result = findNakedTripletsInLine(pencilMarks, row, 'row');
+        if (result) return result;
+    }
+
+    for (let col = 0; col < size; col++) {
+        const result = findNakedTripletsInLine(pencilMarks, col, 'col');
+        if (result) return result;
+    }
+
+    return null;
+}
+
+function findNakedTripletsInLine(pencilMarks, index, type) {
+    const candidateCells = [];
+
+    for (let i = 0; i < size; i++) {
+        const row = type === 'row' ? index : i;
+        const col = type === 'row' ? i : index;
+        const key = `${row},${col}`;
+
+        if (pencilMarks.has(key)) {
+            const marks = pencilMarks.get(key);
+            if (marks.size >= 2 && marks.size <= 3) {
+                candidateCells.push({ row, col, marks: new Set(marks) });
+            }
+        }
+    }
+
+    for (let i = 0; i < candidateCells.length; i++) {
+        for (let j = i + 1; j < candidateCells.length; j++) {
+            for (let k = j + 1; k < candidateCells.length; k++) {
+                const combined = new Set([
+                    ...candidateCells[i].marks,
+                    ...candidateCells[j].marks,
+                    ...candidateCells[k].marks
+                ]);
+
+                if (combined.size === 3) {
+                    const tripletDigits = [...combined];
+                    const tripletPositions = new Set([
+                        `${candidateCells[i].row},${candidateCells[i].col}`,
+                        `${candidateCells[j].row},${candidateCells[j].col}`,
+                        `${candidateCells[k].row},${candidateCells[k].col}`
+                    ]);
+
+                    for (let m = 0; m < size; m++) {
+                        const row = type === 'row' ? index : m;
+                        const col = type === 'row' ? m : index;
+                        const key = `${row},${col}`;
+
+                        if (!tripletPositions.has(key) && pencilMarks.has(key)) {
+                            const marks = pencilMarks.get(key);
+                            const eliminated = new Set();
+
+                            for (const digit of tripletDigits) {
+                                if (marks.has(digit)) {
+                                    eliminated.add(digit);
+                                }
+                            }
+
+                            if (eliminated.size > 0) {
+                                return { type: 'nakedTriplet', tripletDigits, eliminated };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+function findNakedQuadruplets() {
+    if (size < 7) return null;
+
+    const pencilMarks = getAllPencilMarks();
+
+    for (let row = 0; row < size; row++) {
+        const result = findNakedQuadrupletsInLine(pencilMarks, row, 'row');
+        if (result) return result;
+    }
+
+    for (let col = 0; col < size; col++) {
+        const result = findNakedQuadrupletsInLine(pencilMarks, col, 'col');
+        if (result) return result;
+    }
+
+    return null;
+}
+
+function findNakedQuadrupletsInLine(pencilMarks, index, type) {
+    const candidateCells = [];
+
+    for (let i = 0; i < size; i++) {
+        const row = type === 'row' ? index : i;
+        const col = type === 'row' ? i : index;
+        const key = `${row},${col}`;
+
+        if (pencilMarks.has(key)) {
+            const marks = pencilMarks.get(key);
+            if (marks.size >= 2 && marks.size <= 4) {
+                candidateCells.push({ row, col, marks: new Set(marks) });
+            }
+        }
+    }
+
+    for (let i = 0; i < candidateCells.length; i++) {
+        for (let j = i + 1; j < candidateCells.length; j++) {
+            for (let k = j + 1; k < candidateCells.length; k++) {
+                for (let l = k + 1; l < candidateCells.length; l++) {
+                    const combined = new Set([
+                        ...candidateCells[i].marks,
+                        ...candidateCells[j].marks,
+                        ...candidateCells[k].marks,
+                        ...candidateCells[l].marks
+                    ]);
+
+                    if (combined.size === 4) {
+                        const quadDigits = [...combined];
+                        const quadPositions = new Set([
+                            `${candidateCells[i].row},${candidateCells[i].col}`,
+                            `${candidateCells[j].row},${candidateCells[j].col}`,
+                            `${candidateCells[k].row},${candidateCells[k].col}`,
+                            `${candidateCells[l].row},${candidateCells[l].col}`
+                        ]);
+
+                        for (let m = 0; m < size; m++) {
+                            const row = type === 'row' ? index : m;
+                            const col = type === 'row' ? m : index;
+                            const key = `${row},${col}`;
+
+                            if (!quadPositions.has(key) && pencilMarks.has(key)) {
+                                const marks = pencilMarks.get(key);
+                                const eliminated = new Set();
+
+                                for (const digit of quadDigits) {
+                                    if (marks.has(digit)) {
+                                        eliminated.add(digit);
+                                    }
+                                }
+
+                                if (eliminated.size > 0) {
+                                    return { type: 'nakedQuadruplet', quadDigits, eliminated };
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
 function findHiddenPairs() {
     const pencilMarks = getAllPencilMarks();
 
@@ -1013,6 +1213,210 @@ function findHiddenPairsInLine(pencilMarks, index, type) {
 
                             if (eliminated.size > 0) {
                                 return { type: 'hiddenPair', pairDigits: [d1, d2], eliminated };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+function findHiddenTriplets() {
+    const pencilMarks = getAllPencilMarks();
+
+    for (let row = 0; row < size; row++) {
+        const result = findHiddenTripletsInLine(pencilMarks, row, 'row');
+        if (result) return result;
+    }
+
+    for (let col = 0; col < size; col++) {
+        const result = findHiddenTripletsInLine(pencilMarks, col, 'col');
+        if (result) return result;
+    }
+
+    return null;
+}
+
+function findHiddenTripletsInLine(pencilMarks, index, type) {
+    const digitToCells = new Map();
+
+    for (let d = 1; d <= size; d++) {
+        digitToCells.set(d, []);
+    }
+
+    for (let i = 0; i < size; i++) {
+        const row = type === 'row' ? index : i;
+        const col = type === 'row' ? i : index;
+        const key = `${row},${col}`;
+
+        if (grid[row][col] !== null) {
+            digitToCells.delete(grid[row][col]);
+            continue;
+        }
+
+        if (pencilMarks.has(key)) {
+            const marks = pencilMarks.get(key);
+            for (const digit of marks) {
+                if (digitToCells.has(digit)) {
+                    digitToCells.get(digit).push({ row, col });
+                }
+            }
+        }
+    }
+
+    const digits = [...digitToCells.keys()].filter(d => {
+        const cells = digitToCells.get(d);
+        return cells.length >= 2 && cells.length <= 3;
+    });
+
+    for (let i = 0; i < digits.length; i++) {
+        for (let j = i + 1; j < digits.length; j++) {
+            for (let k = j + 1; k < digits.length; k++) {
+                const d1 = digits[i];
+                const d2 = digits[j];
+                const d3 = digits[k];
+
+                const cellSet = new Set();
+                for (const cell of digitToCells.get(d1)) {
+                    cellSet.add(`${cell.row},${cell.col}`);
+                }
+                for (const cell of digitToCells.get(d2)) {
+                    cellSet.add(`${cell.row},${cell.col}`);
+                }
+                for (const cell of digitToCells.get(d3)) {
+                    cellSet.add(`${cell.row},${cell.col}`);
+                }
+
+                if (cellSet.size === 3) {
+                    const tripletDigits = new Set([d1, d2, d3]);
+                    const tripletCells = [...cellSet].map(key => {
+                        const [row, col] = key.split(',').map(Number);
+                        return { row, col };
+                    });
+
+                    for (const cell of tripletCells) {
+                        const key = `${cell.row},${cell.col}`;
+                        const marks = pencilMarks.get(key);
+
+                        if (marks && marks.size > 3) {
+                            const eliminated = new Set();
+                            for (const digit of marks) {
+                                if (!tripletDigits.has(digit)) {
+                                    eliminated.add(digit);
+                                }
+                            }
+
+                            if (eliminated.size > 0) {
+                                return { type: 'hiddenTriplet', tripletDigits: [d1, d2, d3], eliminated };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+function findHiddenQuadruplets() {
+    if (size < 7) return null;
+
+    const pencilMarks = getAllPencilMarks();
+
+    for (let row = 0; row < size; row++) {
+        const result = findHiddenQuadrupletsInLine(pencilMarks, row, 'row');
+        if (result) return result;
+    }
+
+    for (let col = 0; col < size; col++) {
+        const result = findHiddenQuadrupletsInLine(pencilMarks, col, 'col');
+        if (result) return result;
+    }
+
+    return null;
+}
+
+function findHiddenQuadrupletsInLine(pencilMarks, index, type) {
+    const digitToCells = new Map();
+
+    for (let d = 1; d <= size; d++) {
+        digitToCells.set(d, []);
+    }
+
+    for (let i = 0; i < size; i++) {
+        const row = type === 'row' ? index : i;
+        const col = type === 'row' ? i : index;
+        const key = `${row},${col}`;
+
+        if (grid[row][col] !== null) {
+            digitToCells.delete(grid[row][col]);
+            continue;
+        }
+
+        if (pencilMarks.has(key)) {
+            const marks = pencilMarks.get(key);
+            for (const digit of marks) {
+                if (digitToCells.has(digit)) {
+                    digitToCells.get(digit).push({ row, col });
+                }
+            }
+        }
+    }
+
+    const digits = [...digitToCells.keys()].filter(d => {
+        const cells = digitToCells.get(d);
+        return cells.length >= 2 && cells.length <= 4;
+    });
+
+    for (let i = 0; i < digits.length; i++) {
+        for (let j = i + 1; j < digits.length; j++) {
+            for (let k = j + 1; k < digits.length; k++) {
+                for (let l = k + 1; l < digits.length; l++) {
+                    const d1 = digits[i];
+                    const d2 = digits[j];
+                    const d3 = digits[k];
+                    const d4 = digits[l];
+
+                    const cellSet = new Set();
+                    for (const cell of digitToCells.get(d1)) {
+                        cellSet.add(`${cell.row},${cell.col}`);
+                    }
+                    for (const cell of digitToCells.get(d2)) {
+                        cellSet.add(`${cell.row},${cell.col}`);
+                    }
+                    for (const cell of digitToCells.get(d3)) {
+                        cellSet.add(`${cell.row},${cell.col}`);
+                    }
+                    for (const cell of digitToCells.get(d4)) {
+                        cellSet.add(`${cell.row},${cell.col}`);
+                    }
+
+                    if (cellSet.size === 4) {
+                        const quadDigits = new Set([d1, d2, d3, d4]);
+                        const quadCells = [...cellSet].map(key => {
+                            const [row, col] = key.split(',').map(Number);
+                            return { row, col };
+                        });
+
+                        for (const cell of quadCells) {
+                            const key = `${cell.row},${cell.col}`;
+                            const marks = pencilMarks.get(key);
+
+                            if (marks && marks.size > 4) {
+                                const eliminated = new Set();
+                                for (const digit of marks) {
+                                    if (!quadDigits.has(digit)) {
+                                        eliminated.add(digit);
+                                    }
+                                }
+
+                                if (eliminated.size > 0) {
+                                    return { type: 'hiddenQuadruplet', quadDigits: [d1, d2, d3, d4], eliminated };
+                                }
                             }
                         }
                     }
