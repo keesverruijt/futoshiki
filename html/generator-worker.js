@@ -516,14 +516,58 @@ function hasUniqueSolution() {
 
 // ========== Difficulty Analysis ==========
 
+// Persistent eliminated candidates for the solver
+let eliminatedCandidates = null;
+
+function initEliminatedCandidates() {
+    eliminatedCandidates = new Map();
+}
+
+function isEliminated(row, col, digit) {
+    const key = `${row},${col}`;
+    return eliminatedCandidates.has(key) && eliminatedCandidates.get(key).has(digit);
+}
+
+function eliminateCandidate(row, col, digit) {
+    const key = `${row},${col}`;
+    if (!eliminatedCandidates.has(key)) {
+        eliminatedCandidates.set(key, new Set());
+    }
+    eliminatedCandidates.get(key).add(digit);
+}
+
+function getPossibleDigitsWithEliminations(row, col) {
+    const base = getPossibleDigits(row, col);
+    const result = new Set();
+    for (const digit of base) {
+        if (!isEliminated(row, col, digit)) {
+            result.add(digit);
+        }
+    }
+    return result;
+}
+
+function getAllPencilMarksWithEliminations() {
+    const pencilMarks = new Map();
+    for (let row = 0; row < size; row++) {
+        for (let col = 0; col < size; col++) {
+            if (grid[row][col] === null) {
+                pencilMarks.set(`${row},${col}`, getPossibleDigitsWithEliminations(row, col));
+            }
+        }
+    }
+    return pencilMarks;
+}
+
 function analyzePuzzleDifficulty() {
     const originalGrid = grid;
     const workingGrid = originalGrid.map(row => [...row]);
     grid = workingGrid;
+    initEliminatedCandidates();
 
     let maxStrategy = 'nakedSingle';
     let solved = false;
-    let maxSteps = size * size * 2;
+    let maxSteps = size * size * 10; // Increased for more complex strategies
 
     while (maxSteps > 0) {
         maxSteps--;
@@ -540,12 +584,12 @@ function analyzePuzzleDifficulty() {
             break;
         }
 
-        // Try naked singles
+        // Try naked singles (including those created by eliminations)
         let madeProgress = false;
         for (let row = 0; row < size; row++) {
             for (let col = 0; col < size; col++) {
                 if (grid[row][col] === null) {
-                    const possible = getPossibleDigits(row, col);
+                    const possible = getPossibleDigitsWithEliminations(row, col);
                     if (possible.size === 0) {
                         grid = originalGrid;
                         return { solvable: false, maxStrategyRequired: maxStrategy };
@@ -560,7 +604,7 @@ function analyzePuzzleDifficulty() {
         if (madeProgress) continue;
 
         // Try hidden singles
-        const hiddenSingle = findHiddenSingle();
+        const hiddenSingle = findHiddenSingleWithEliminations();
         if (hiddenSingle) {
             grid[hiddenSingle.row][hiddenSingle.col] = hiddenSingle.digit;
             if (maxStrategy === 'nakedSingle') maxStrategy = 'hiddenSingle';
@@ -568,8 +612,12 @@ function analyzePuzzleDifficulty() {
         }
 
         // Try naked pairs
-        const nakedPair = findNakedPairs();
+        const nakedPair = findNakedPairsWithEliminations();
         if (nakedPair) {
+            // Apply the eliminations
+            for (const digit of nakedPair.eliminated) {
+                eliminateCandidate(nakedPair.affectedCell.row, nakedPair.affectedCell.col, digit);
+            }
             if (maxStrategy === 'nakedSingle' || maxStrategy === 'hiddenSingle') {
                 maxStrategy = 'nakedPair';
             }
@@ -577,8 +625,12 @@ function analyzePuzzleDifficulty() {
         }
 
         // Try hidden pairs
-        const hiddenPair = findHiddenPairs();
+        const hiddenPair = findHiddenPairsWithEliminations();
         if (hiddenPair) {
+            // Apply the eliminations
+            for (const digit of hiddenPair.eliminated) {
+                eliminateCandidate(hiddenPair.affectedCell.row, hiddenPair.affectedCell.col, digit);
+            }
             if (maxStrategy === 'nakedSingle' || maxStrategy === 'hiddenSingle' || maxStrategy === 'nakedPair') {
                 maxStrategy = 'hiddenPair';
             }
@@ -586,8 +638,11 @@ function analyzePuzzleDifficulty() {
         }
 
         // Try naked triplets
-        const nakedTriplet = findNakedTriplets();
+        const nakedTriplet = findNakedTripletsWithEliminations();
         if (nakedTriplet) {
+            for (const digit of nakedTriplet.eliminated) {
+                eliminateCandidate(nakedTriplet.affectedCell.row, nakedTriplet.affectedCell.col, digit);
+            }
             if (['nakedSingle', 'hiddenSingle', 'nakedPair', 'hiddenPair'].includes(maxStrategy)) {
                 maxStrategy = 'nakedTriplet';
             }
@@ -595,8 +650,11 @@ function analyzePuzzleDifficulty() {
         }
 
         // Try hidden triplets
-        const hiddenTriplet = findHiddenTriplets();
+        const hiddenTriplet = findHiddenTripletsWithEliminations();
         if (hiddenTriplet) {
+            for (const digit of hiddenTriplet.eliminated) {
+                eliminateCandidate(hiddenTriplet.affectedCell.row, hiddenTriplet.affectedCell.col, digit);
+            }
             if (['nakedSingle', 'hiddenSingle', 'nakedPair', 'hiddenPair', 'nakedTriplet'].includes(maxStrategy)) {
                 maxStrategy = 'hiddenTriplet';
             }
@@ -604,8 +662,11 @@ function analyzePuzzleDifficulty() {
         }
 
         // Try naked quadruplets (7x7 and larger)
-        const nakedQuadruplet = findNakedQuadruplets();
+        const nakedQuadruplet = findNakedQuadrupletsWithEliminations();
         if (nakedQuadruplet) {
+            for (const digit of nakedQuadruplet.eliminated) {
+                eliminateCandidate(nakedQuadruplet.affectedCell.row, nakedQuadruplet.affectedCell.col, digit);
+            }
             if (['nakedSingle', 'hiddenSingle', 'nakedPair', 'hiddenPair', 'nakedTriplet', 'hiddenTriplet'].includes(maxStrategy)) {
                 maxStrategy = 'nakedQuadruplet';
             }
@@ -613,8 +674,11 @@ function analyzePuzzleDifficulty() {
         }
 
         // Try hidden quadruplets (7x7 and larger)
-        const hiddenQuadruplet = findHiddenQuadruplets();
+        const hiddenQuadruplet = findHiddenQuadrupletsWithEliminations();
         if (hiddenQuadruplet) {
+            for (const digit of hiddenQuadruplet.eliminated) {
+                eliminateCandidate(hiddenQuadruplet.affectedCell.row, hiddenQuadruplet.affectedCell.col, digit);
+            }
             if (maxStrategy !== 'xWing') {
                 maxStrategy = 'hiddenQuadruplet';
             }
@@ -622,8 +686,11 @@ function analyzePuzzleDifficulty() {
         }
 
         // Try X-Wing
-        const xWing = findXWing();
+        const xWing = findXWingWithEliminations();
         if (xWing) {
+            for (const cell of xWing.eliminatedCells) {
+                eliminateCandidate(cell.row, cell.col, xWing.digit);
+            }
             maxStrategy = 'xWing';
             continue;
         }
@@ -635,6 +702,592 @@ function analyzePuzzleDifficulty() {
 
     grid = originalGrid;
     return { solvable: solved, maxStrategyRequired: maxStrategy };
+}
+
+// Hidden single that respects eliminations
+function findHiddenSingleWithEliminations() {
+    const pencilMarks = getAllPencilMarksWithEliminations();
+
+    // Check rows
+    for (let row = 0; row < size; row++) {
+        for (let digit = 1; digit <= size; digit++) {
+            const positions = [];
+            for (let col = 0; col < size; col++) {
+                if (grid[row][col] === digit) {
+                    positions.length = 0;
+                    break;
+                }
+                const key = `${row},${col}`;
+                if (pencilMarks.has(key) && pencilMarks.get(key).has(digit)) {
+                    positions.push({ row, col });
+                }
+            }
+            if (positions.length === 1) {
+                return { row: positions[0].row, col: positions[0].col, digit };
+            }
+        }
+    }
+
+    // Check columns
+    for (let col = 0; col < size; col++) {
+        for (let digit = 1; digit <= size; digit++) {
+            const positions = [];
+            for (let row = 0; row < size; row++) {
+                if (grid[row][col] === digit) {
+                    positions.length = 0;
+                    break;
+                }
+                const key = `${row},${col}`;
+                if (pencilMarks.has(key) && pencilMarks.get(key).has(digit)) {
+                    positions.push({ row, col });
+                }
+            }
+            if (positions.length === 1) {
+                return { row: positions[0].row, col: positions[0].col, digit };
+            }
+        }
+    }
+
+    return null;
+}
+
+// Strategy functions that use eliminations
+function findNakedPairsWithEliminations() {
+    const pencilMarks = getAllPencilMarksWithEliminations();
+    for (let row = 0; row < size; row++) {
+        const result = findNakedPairsInLineWithEliminations(pencilMarks, row, 'row');
+        if (result) return result;
+    }
+    for (let col = 0; col < size; col++) {
+        const result = findNakedPairsInLineWithEliminations(pencilMarks, col, 'col');
+        if (result) return result;
+    }
+    return null;
+}
+
+function findNakedPairsInLineWithEliminations(pencilMarks, index, type) {
+    const pairCells = [];
+    for (let i = 0; i < size; i++) {
+        const row = type === 'row' ? index : i;
+        const col = type === 'row' ? i : index;
+        const key = `${row},${col}`;
+        if (pencilMarks.has(key)) {
+            const marks = pencilMarks.get(key);
+            if (marks.size === 2) {
+                pairCells.push({ row, col, marks: [...marks].sort().join(','), markSet: marks });
+            }
+        }
+    }
+
+    for (let i = 0; i < pairCells.length; i++) {
+        for (let j = i + 1; j < pairCells.length; j++) {
+            if (pairCells[i].marks === pairCells[j].marks) {
+                const pairDigits = [...pairCells[i].markSet];
+                const pairPositions = new Set([
+                    `${pairCells[i].row},${pairCells[i].col}`,
+                    `${pairCells[j].row},${pairCells[j].col}`
+                ]);
+
+                for (let k = 0; k < size; k++) {
+                    const row = type === 'row' ? index : k;
+                    const col = type === 'row' ? k : index;
+                    const key = `${row},${col}`;
+
+                    if (!pairPositions.has(key) && pencilMarks.has(key)) {
+                        const marks = pencilMarks.get(key);
+                        const eliminated = new Set();
+                        for (const digit of pairDigits) {
+                            if (marks.has(digit)) {
+                                eliminated.add(digit);
+                            }
+                        }
+                        if (eliminated.size > 0) {
+                            return { type: 'nakedPair', pairDigits, eliminated, affectedCell: { row, col } };
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function findHiddenPairsWithEliminations() {
+    const pencilMarks = getAllPencilMarksWithEliminations();
+    for (let row = 0; row < size; row++) {
+        const result = findHiddenPairsInLineWithEliminations(pencilMarks, row, 'row');
+        if (result) return result;
+    }
+    for (let col = 0; col < size; col++) {
+        const result = findHiddenPairsInLineWithEliminations(pencilMarks, col, 'col');
+        if (result) return result;
+    }
+    return null;
+}
+
+function findHiddenPairsInLineWithEliminations(pencilMarks, index, type) {
+    const digitToCells = new Map();
+    for (let d = 1; d <= size; d++) {
+        digitToCells.set(d, []);
+    }
+
+    for (let i = 0; i < size; i++) {
+        const row = type === 'row' ? index : i;
+        const col = type === 'row' ? i : index;
+        const key = `${row},${col}`;
+
+        if (grid[row][col] !== null) {
+            digitToCells.delete(grid[row][col]);
+            continue;
+        }
+
+        if (pencilMarks.has(key)) {
+            const marks = pencilMarks.get(key);
+            for (const digit of marks) {
+                if (digitToCells.has(digit)) {
+                    digitToCells.get(digit).push({ row, col });
+                }
+            }
+        }
+    }
+
+    const digits = [...digitToCells.keys()];
+    for (let i = 0; i < digits.length; i++) {
+        for (let j = i + 1; j < digits.length; j++) {
+            const d1 = digits[i];
+            const d2 = digits[j];
+            const cells1 = digitToCells.get(d1);
+            const cells2 = digitToCells.get(d2);
+
+            if (cells1.length === 2 && cells2.length === 2) {
+                const key1a = `${cells1[0].row},${cells1[0].col}`;
+                const key1b = `${cells1[1].row},${cells1[1].col}`;
+                const key2a = `${cells2[0].row},${cells2[0].col}`;
+                const key2b = `${cells2[1].row},${cells2[1].col}`;
+
+                if ((key1a === key2a && key1b === key2b) || (key1a === key2b && key1b === key2a)) {
+                    const pairDigits = new Set([d1, d2]);
+
+                    for (const cell of cells1) {
+                        const key = `${cell.row},${cell.col}`;
+                        const marks = pencilMarks.get(key);
+
+                        if (marks && marks.size > 2) {
+                            const eliminated = new Set();
+                            for (const digit of marks) {
+                                if (!pairDigits.has(digit)) {
+                                    eliminated.add(digit);
+                                }
+                            }
+
+                            if (eliminated.size > 0) {
+                                return { type: 'hiddenPair', pairDigits: [d1, d2], eliminated, affectedCell: cell };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function findNakedTripletsWithEliminations() {
+    const pencilMarks = getAllPencilMarksWithEliminations();
+    for (let row = 0; row < size; row++) {
+        const result = findNakedTripletsInLineWithEliminations(pencilMarks, row, 'row');
+        if (result) return result;
+    }
+    for (let col = 0; col < size; col++) {
+        const result = findNakedTripletsInLineWithEliminations(pencilMarks, col, 'col');
+        if (result) return result;
+    }
+    return null;
+}
+
+function findNakedTripletsInLineWithEliminations(pencilMarks, index, type) {
+    const candidateCells = [];
+    for (let i = 0; i < size; i++) {
+        const row = type === 'row' ? index : i;
+        const col = type === 'row' ? i : index;
+        const key = `${row},${col}`;
+        if (pencilMarks.has(key)) {
+            const marks = pencilMarks.get(key);
+            if (marks.size >= 2 && marks.size <= 3) {
+                candidateCells.push({ row, col, marks: new Set(marks) });
+            }
+        }
+    }
+
+    for (let i = 0; i < candidateCells.length; i++) {
+        for (let j = i + 1; j < candidateCells.length; j++) {
+            for (let k = j + 1; k < candidateCells.length; k++) {
+                const combined = new Set([
+                    ...candidateCells[i].marks,
+                    ...candidateCells[j].marks,
+                    ...candidateCells[k].marks
+                ]);
+
+                if (combined.size === 3) {
+                    const tripletDigits = [...combined];
+                    const tripletPositions = new Set([
+                        `${candidateCells[i].row},${candidateCells[i].col}`,
+                        `${candidateCells[j].row},${candidateCells[j].col}`,
+                        `${candidateCells[k].row},${candidateCells[k].col}`
+                    ]);
+
+                    for (let m = 0; m < size; m++) {
+                        const row = type === 'row' ? index : m;
+                        const col = type === 'row' ? m : index;
+                        const key = `${row},${col}`;
+
+                        if (!tripletPositions.has(key) && pencilMarks.has(key)) {
+                            const marks = pencilMarks.get(key);
+                            const eliminated = new Set();
+                            for (const digit of tripletDigits) {
+                                if (marks.has(digit)) {
+                                    eliminated.add(digit);
+                                }
+                            }
+                            if (eliminated.size > 0) {
+                                return { type: 'nakedTriplet', tripletDigits, eliminated, affectedCell: { row, col } };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function findHiddenTripletsWithEliminations() {
+    const pencilMarks = getAllPencilMarksWithEliminations();
+    for (let row = 0; row < size; row++) {
+        const result = findHiddenTripletsInLineWithEliminations(pencilMarks, row, 'row');
+        if (result) return result;
+    }
+    for (let col = 0; col < size; col++) {
+        const result = findHiddenTripletsInLineWithEliminations(pencilMarks, col, 'col');
+        if (result) return result;
+    }
+    return null;
+}
+
+function findHiddenTripletsInLineWithEliminations(pencilMarks, index, type) {
+    const digitToCells = new Map();
+    for (let d = 1; d <= size; d++) {
+        digitToCells.set(d, []);
+    }
+
+    for (let i = 0; i < size; i++) {
+        const row = type === 'row' ? index : i;
+        const col = type === 'row' ? i : index;
+        const key = `${row},${col}`;
+
+        if (grid[row][col] !== null) {
+            digitToCells.delete(grid[row][col]);
+            continue;
+        }
+
+        if (pencilMarks.has(key)) {
+            const marks = pencilMarks.get(key);
+            for (const digit of marks) {
+                if (digitToCells.has(digit)) {
+                    digitToCells.get(digit).push({ row, col });
+                }
+            }
+        }
+    }
+
+    const digits = [...digitToCells.keys()].filter(d => {
+        const cells = digitToCells.get(d);
+        return cells.length >= 2 && cells.length <= 3;
+    });
+
+    for (let i = 0; i < digits.length; i++) {
+        for (let j = i + 1; j < digits.length; j++) {
+            for (let k = j + 1; k < digits.length; k++) {
+                const d1 = digits[i];
+                const d2 = digits[j];
+                const d3 = digits[k];
+
+                const cellSet = new Set();
+                for (const cell of digitToCells.get(d1)) {
+                    cellSet.add(`${cell.row},${cell.col}`);
+                }
+                for (const cell of digitToCells.get(d2)) {
+                    cellSet.add(`${cell.row},${cell.col}`);
+                }
+                for (const cell of digitToCells.get(d3)) {
+                    cellSet.add(`${cell.row},${cell.col}`);
+                }
+
+                if (cellSet.size === 3) {
+                    const tripletDigits = new Set([d1, d2, d3]);
+                    const tripletCells = [...cellSet].map(key => {
+                        const [row, col] = key.split(',').map(Number);
+                        return { row, col };
+                    });
+
+                    for (const cell of tripletCells) {
+                        const key = `${cell.row},${cell.col}`;
+                        const marks = pencilMarks.get(key);
+
+                        if (marks && marks.size > 3) {
+                            const eliminated = new Set();
+                            for (const digit of marks) {
+                                if (!tripletDigits.has(digit)) {
+                                    eliminated.add(digit);
+                                }
+                            }
+
+                            if (eliminated.size > 0) {
+                                return { type: 'hiddenTriplet', tripletDigits: [d1, d2, d3], eliminated, affectedCell: cell };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function findNakedQuadrupletsWithEliminations() {
+    if (size < 7) return null;
+    const pencilMarks = getAllPencilMarksWithEliminations();
+    for (let row = 0; row < size; row++) {
+        const result = findNakedQuadrupletsInLineWithEliminations(pencilMarks, row, 'row');
+        if (result) return result;
+    }
+    for (let col = 0; col < size; col++) {
+        const result = findNakedQuadrupletsInLineWithEliminations(pencilMarks, col, 'col');
+        if (result) return result;
+    }
+    return null;
+}
+
+function findNakedQuadrupletsInLineWithEliminations(pencilMarks, index, type) {
+    const candidateCells = [];
+    for (let i = 0; i < size; i++) {
+        const row = type === 'row' ? index : i;
+        const col = type === 'row' ? i : index;
+        const key = `${row},${col}`;
+        if (pencilMarks.has(key)) {
+            const marks = pencilMarks.get(key);
+            if (marks.size >= 2 && marks.size <= 4) {
+                candidateCells.push({ row, col, marks: new Set(marks) });
+            }
+        }
+    }
+
+    for (let i = 0; i < candidateCells.length; i++) {
+        for (let j = i + 1; j < candidateCells.length; j++) {
+            for (let k = j + 1; k < candidateCells.length; k++) {
+                for (let l = k + 1; l < candidateCells.length; l++) {
+                    const combined = new Set([
+                        ...candidateCells[i].marks,
+                        ...candidateCells[j].marks,
+                        ...candidateCells[k].marks,
+                        ...candidateCells[l].marks
+                    ]);
+
+                    if (combined.size === 4) {
+                        const quadDigits = [...combined];
+                        const quadPositions = new Set([
+                            `${candidateCells[i].row},${candidateCells[i].col}`,
+                            `${candidateCells[j].row},${candidateCells[j].col}`,
+                            `${candidateCells[k].row},${candidateCells[k].col}`,
+                            `${candidateCells[l].row},${candidateCells[l].col}`
+                        ]);
+
+                        for (let m = 0; m < size; m++) {
+                            const row = type === 'row' ? index : m;
+                            const col = type === 'row' ? m : index;
+                            const key = `${row},${col}`;
+
+                            if (!quadPositions.has(key) && pencilMarks.has(key)) {
+                                const marks = pencilMarks.get(key);
+                                const eliminated = new Set();
+                                for (const digit of quadDigits) {
+                                    if (marks.has(digit)) {
+                                        eliminated.add(digit);
+                                    }
+                                }
+                                if (eliminated.size > 0) {
+                                    return { type: 'nakedQuadruplet', quadDigits, eliminated, affectedCell: { row, col } };
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function findHiddenQuadrupletsWithEliminations() {
+    if (size < 7) return null;
+    const pencilMarks = getAllPencilMarksWithEliminations();
+    for (let row = 0; row < size; row++) {
+        const result = findHiddenQuadrupletsInLineWithEliminations(pencilMarks, row, 'row');
+        if (result) return result;
+    }
+    for (let col = 0; col < size; col++) {
+        const result = findHiddenQuadrupletsInLineWithEliminations(pencilMarks, col, 'col');
+        if (result) return result;
+    }
+    return null;
+}
+
+function findHiddenQuadrupletsInLineWithEliminations(pencilMarks, index, type) {
+    const digitToCells = new Map();
+    for (let d = 1; d <= size; d++) {
+        digitToCells.set(d, []);
+    }
+
+    for (let i = 0; i < size; i++) {
+        const row = type === 'row' ? index : i;
+        const col = type === 'row' ? i : index;
+        const key = `${row},${col}`;
+
+        if (grid[row][col] !== null) {
+            digitToCells.delete(grid[row][col]);
+            continue;
+        }
+
+        if (pencilMarks.has(key)) {
+            const marks = pencilMarks.get(key);
+            for (const digit of marks) {
+                if (digitToCells.has(digit)) {
+                    digitToCells.get(digit).push({ row, col });
+                }
+            }
+        }
+    }
+
+    const digits = [...digitToCells.keys()].filter(d => {
+        const cells = digitToCells.get(d);
+        return cells.length >= 2 && cells.length <= 4;
+    });
+
+    for (let i = 0; i < digits.length; i++) {
+        for (let j = i + 1; j < digits.length; j++) {
+            for (let k = j + 1; k < digits.length; k++) {
+                for (let l = k + 1; l < digits.length; l++) {
+                    const d1 = digits[i];
+                    const d2 = digits[j];
+                    const d3 = digits[k];
+                    const d4 = digits[l];
+
+                    const cellSet = new Set();
+                    for (const cell of digitToCells.get(d1)) {
+                        cellSet.add(`${cell.row},${cell.col}`);
+                    }
+                    for (const cell of digitToCells.get(d2)) {
+                        cellSet.add(`${cell.row},${cell.col}`);
+                    }
+                    for (const cell of digitToCells.get(d3)) {
+                        cellSet.add(`${cell.row},${cell.col}`);
+                    }
+                    for (const cell of digitToCells.get(d4)) {
+                        cellSet.add(`${cell.row},${cell.col}`);
+                    }
+
+                    if (cellSet.size === 4) {
+                        const quadDigits = new Set([d1, d2, d3, d4]);
+                        const quadCells = [...cellSet].map(key => {
+                            const [row, col] = key.split(',').map(Number);
+                            return { row, col };
+                        });
+
+                        for (const cell of quadCells) {
+                            const key = `${cell.row},${cell.col}`;
+                            const marks = pencilMarks.get(key);
+
+                            if (marks && marks.size > 4) {
+                                const eliminated = new Set();
+                                for (const digit of marks) {
+                                    if (!quadDigits.has(digit)) {
+                                        eliminated.add(digit);
+                                    }
+                                }
+
+                                if (eliminated.size > 0) {
+                                    return { type: 'hiddenQuadruplet', quadDigits: [d1, d2, d3, d4], eliminated, affectedCell: cell };
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function findXWingWithEliminations() {
+    const pencilMarks = getAllPencilMarksWithEliminations();
+    for (let digit = 1; digit <= size; digit++) {
+        const result = findXWingForDigitWithEliminations(pencilMarks, digit, 'row');
+        if (result) return result;
+        const result2 = findXWingForDigitWithEliminations(pencilMarks, digit, 'col');
+        if (result2) return result2;
+    }
+    return null;
+}
+
+function findXWingForDigitWithEliminations(pencilMarks, digit, type) {
+    // Find lines where digit appears in exactly 2 positions
+    const linesWithTwo = [];
+    for (let i = 0; i < size; i++) {
+        const positions = [];
+        for (let j = 0; j < size; j++) {
+            const row = type === 'row' ? i : j;
+            const col = type === 'row' ? j : i;
+            const key = `${row},${col}`;
+            if (pencilMarks.has(key) && pencilMarks.get(key).has(digit)) {
+                positions.push(type === 'row' ? col : row);
+            }
+        }
+        if (positions.length === 2) {
+            linesWithTwo.push({ line: i, positions });
+        }
+    }
+
+    // Find two lines with same positions
+    for (let i = 0; i < linesWithTwo.length; i++) {
+        for (let j = i + 1; j < linesWithTwo.length; j++) {
+            if (linesWithTwo[i].positions[0] === linesWithTwo[j].positions[0] &&
+                linesWithTwo[i].positions[1] === linesWithTwo[j].positions[1]) {
+                // Found X-Wing! Check for eliminations in the crossing lines
+                const pos1 = linesWithTwo[i].positions[0];
+                const pos2 = linesWithTwo[i].positions[1];
+                const line1 = linesWithTwo[i].line;
+                const line2 = linesWithTwo[j].line;
+
+                const eliminatedCells = [];
+                for (const crossLine of [pos1, pos2]) {
+                    for (let k = 0; k < size; k++) {
+                        if (k === line1 || k === line2) continue;
+                        const row = type === 'row' ? k : crossLine;
+                        const col = type === 'row' ? crossLine : k;
+                        const key = `${row},${col}`;
+                        if (pencilMarks.has(key) && pencilMarks.get(key).has(digit)) {
+                            eliminatedCells.push({ row, col });
+                        }
+                    }
+                }
+
+                if (eliminatedCells.length > 0) {
+                    return { type: 'xWing', digit, eliminatedCells };
+                }
+            }
+        }
+    }
+    return null;
 }
 
 // ========== Constraint Propagation ==========
