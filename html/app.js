@@ -15,38 +15,7 @@
  */
 
 // Backend configuration
-// Set USE_LOCAL_API to true when running with Docker/MySQL backend
-// Set to false to use Firebase (requires Firebase scripts in index.html)
-const USE_LOCAL_API = typeof FUTOSHIKI_USE_LOCAL_API !== 'undefined' ? FUTOSHIKI_USE_LOCAL_API : false;
-const API_BASE_URL = typeof FUTOSHIKI_API_URL !== 'undefined' ? FUTOSHIKI_API_URL : '/api';
-
-// Firebase configuration (only used when USE_LOCAL_API is false)
-const firebaseConfig = {
-    apiKey: "AIzaSyBzRhFeZiZTYpBspnogQQvwyIMRr-I16As",
-    authDomain: "futoshiki-helper.firebaseapp.com",
-    databaseURL: "https://futoshiki-helper-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "futoshiki-helper",
-    storageBucket: "futoshiki-helper.firebasestorage.app",
-    messagingSenderId: "1046234502954",
-    appId: "1:1046234502954:web:f63ae06c114b70751cb053",
-    measurementId: "G-MB65MM4SBE"
-};
-
-// Initialize Firebase (only if not using local API)
-let firebaseDb = null;
-let firebaseInitialized = false;
-
-if (!USE_LOCAL_API) {
-    try {
-        if (typeof firebase !== 'undefined') {
-            firebase.initializeApp(firebaseConfig);
-            firebaseDb = firebase.database();
-            firebaseInitialized = true;
-        }
-    } catch (error) {
-        console.warn('Firebase initialization failed:', error);
-    }
-}
+const API_BASE_URL = '/futoshiki/api';
 
 // ========== OFFLINE QUEUE MANAGEMENT ==========
 const OFFLINE_QUEUE_KEY = 'futoshiki_offline_queue';
@@ -86,16 +55,12 @@ async function syncOfflineQueue() {
         return;
     }
 
-    if (!USE_LOCAL_API && (!firebaseInitialized || !firebaseDb)) {
-        return;
-    }
-
     const queue = getOfflineQueue();
     if (queue.length === 0) {
         return;
     }
 
-    // Aggregate updates by size to minimize transactions
+    // Aggregate updates by size to minimize API calls
     const updatesBySize = new Map();
     for (const item of queue) {
         if (!updatesBySize.has(item.size)) {
@@ -110,27 +75,13 @@ async function syncOfflineQueue() {
     const failedItems = [];
     for (const [size, stats] of updatesBySize) {
         try {
-            if (USE_LOCAL_API) {
-                // Use local API - send each completion individually
-                for (let i = 0; i < stats.completed; i++) {
-                    const avgTime = Math.round(stats.totalTime / stats.completed);
-                    await fetch(`${API_BASE_URL}/stats.php`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ size, solveTime: avgTime })
-                    });
-                }
-            } else {
-                // Use Firebase
-                const statsRef = firebaseDb.ref(`stats/${size}`);
-                await statsRef.transaction((current) => {
-                    if (current === null) {
-                        return { completed: stats.completed, totalTime: stats.totalTime };
-                    }
-                    return {
-                        completed: (current.completed || 0) + stats.completed,
-                        totalTime: (current.totalTime || 0) + stats.totalTime
-                    };
+            // Send each completion individually
+            for (let i = 0; i < stats.completed; i++) {
+                const avgTime = Math.round(stats.totalTime / stats.completed);
+                await fetch(`${API_BASE_URL}/stats.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ size, solveTime: avgTime })
                 });
             }
         } catch (error) {
@@ -160,7 +111,6 @@ window.addEventListener('online', () => {
 
 // Try to sync on page load
 document.addEventListener('DOMContentLoaded', () => {
-    // Delay sync slightly to ensure Firebase is ready
     setTimeout(syncOfflineQueue, 2000);
 });
 
@@ -223,7 +173,7 @@ class FutoshikiGame {
         this.puzzleCompleted = false;
         this.startTime = null;
         this.timerInterval = null;
-        this.currentFirebaseUnsubscribe = null;
+        this.currentStatsUnsubscribe = null;
         this.hintsUsed = 0;
         this.hintPenaltySeconds = 30;
 
@@ -523,37 +473,15 @@ class FutoshikiGame {
 
     subscribeToGlobalStats() {
         // Unsubscribe from previous size
-        if (this.currentFirebaseUnsubscribe) {
-            this.currentFirebaseUnsubscribe();
-            this.currentFirebaseUnsubscribe = null;
+        if (this.currentStatsUnsubscribe) {
+            this.currentStatsUnsubscribe();
+            this.currentStatsUnsubscribe = null;
         }
 
-        if (USE_LOCAL_API) {
-            // Use local API - poll periodically
-            this.fetchGlobalStats();
-            const intervalId = setInterval(() => this.fetchGlobalStats(), 30000); // Poll every 30s
-            this.currentFirebaseUnsubscribe = () => clearInterval(intervalId);
-            return;
-        }
-
-        if (!firebaseInitialized || !firebaseDb) {
-            return;
-        }
-
-        const statsRef = firebaseDb.ref(`stats/${this.size}`);
-        const callback = (snapshot) => {
-            const data = snapshot.val();
-            if (this.globalAvgTimeElement && data) {
-                const avgTime = data.completed > 0 ? data.totalTime / data.completed : null;
-                this.globalAvgTimeElement.textContent = this.formatTime(avgTime);
-            }
-        };
-        const errorCallback = (error) => {
-            console.warn('Firebase read error (stats):', error);
-        };
-
-        statsRef.on('value', callback, errorCallback);
-        this.currentFirebaseUnsubscribe = () => statsRef.off('value', callback);
+        // Poll periodically for global stats
+        this.fetchGlobalStats();
+        const intervalId = setInterval(() => this.fetchGlobalStats(), 30000); // Poll every 30s
+        this.currentStatsUnsubscribe = () => clearInterval(intervalId);
     }
 
     async fetchGlobalStats() {
@@ -579,45 +507,18 @@ class FutoshikiGame {
             return;
         }
 
-        if (USE_LOCAL_API) {
-            // Use local API
-            try {
-                const response = await fetch(`${API_BASE_URL}/stats.php`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ size, solveTime })
-                });
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                // Refresh display with new stats
-                this.fetchGlobalStats();
-            } catch (error) {
-                console.warn('Failed to update global stats, queuing for later:', error);
-                addToOfflineQueue(size, solveTime);
-            }
-            return;
-        }
-
-        // Use Firebase
-        if (!firebaseInitialized || !firebaseDb) {
-            addToOfflineQueue(size, solveTime);
-            return;
-        }
-
-        const statsRef = firebaseDb.ref(`stats/${size}`);
         try {
-            await statsRef.transaction((current) => {
-                if (current === null) {
-                    return { completed: 1, totalTime: solveTime };
-                }
-                return {
-                    completed: (current.completed || 0) + 1,
-                    totalTime: (current.totalTime || 0) + solveTime
-                };
+            const response = await fetch(`${API_BASE_URL}/stats.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ size, solveTime })
             });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            // Refresh display with new stats
+            this.fetchGlobalStats();
         } catch (error) {
-            // If the transaction failed (network error), queue for later
             console.warn('Failed to update global stats, queuing for later:', error);
             addToOfflineQueue(size, solveTime);
         }
