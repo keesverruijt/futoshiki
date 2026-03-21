@@ -3938,18 +3938,18 @@ class FutoshikiGame {
         firework.style.left = x + 'px';
         firework.style.bottom = '0px';
         firework.style.background = color;
-        firework.style.boxShadow = `0 0 6px ${color}`;
+        firework.style.boxShadow = `0 0 12px ${color}`;
         container.appendChild(firework);
 
         // After rise, create explosion
         setTimeout(() => {
             firework.remove();
             this.createExplosion(container, x, endY, color);
-        }, 800);
+        }, 1000);
     }
 
     createExplosion(container, x, y, color) {
-        const particleCount = 20 + Math.floor(Math.random() * 15);
+        const particleCount = 30 + Math.floor(Math.random() * 20);
 
         for (let i = 0; i < particleCount; i++) {
             const particle = document.createElement('div');
@@ -3957,13 +3957,13 @@ class FutoshikiGame {
             particle.style.left = x + 'px';
             particle.style.top = y + 'px';
             particle.style.background = color;
-            particle.style.boxShadow = `0 0 4px ${color}`;
+            particle.style.boxShadow = `0 0 8px ${color}`;
 
             // Random direction for explosion
             const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5) * 0.5;
-            const distance = 50 + Math.random() * 100;
+            const distance = 80 + Math.random() * 150;
             const tx = Math.cos(angle) * distance;
-            const ty = Math.sin(angle) * distance + 30; // Add gravity effect
+            const ty = Math.sin(angle) * distance + 40; // Add gravity effect
 
             particle.style.setProperty('--tx', tx + 'px');
             particle.style.setProperty('--ty', ty + 'px');
@@ -3973,7 +3973,7 @@ class FutoshikiGame {
             // Remove particle after animation
             setTimeout(() => {
                 particle.remove();
-            }, 1000);
+            }, 1200);
         }
     }
 }

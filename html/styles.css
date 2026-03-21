@@ -718,18 +718,18 @@ button:hover {
 
 .firework {
     position: absolute;
-    width: 6px;
-    height: 6px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
-    animation: firework-rise 0.8s ease-out forwards;
+    animation: firework-rise 1s ease-out forwards;
 }
 
 .firework-particle {
     position: absolute;
-    width: 4px;
-    height: 4px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    animation: firework-explode 1s ease-out forwards;
+    animation: firework-explode 1.2s ease-out forwards;
 }
 
 @keyframes firework-rise {
@@ -739,7 +739,7 @@ button:hover {
     }
     100% {
         opacity: 0.8;
-        transform: translateY(-200px) scale(0.5);
+        transform: translateY(-300px) scale(0.6);
     }
 }
 
@@ -750,7 +750,7 @@ button:hover {
     }
     100% {
         opacity: 0;
-        transform: translate(var(--tx), var(--ty)) scale(0.3);
+        transform: translate(var(--tx), var(--ty)) scale(0.4);
     }
 }
 

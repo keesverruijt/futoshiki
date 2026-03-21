@@ -9,6 +9,7 @@
 require_once __DIR__ . '/config.php';
 
 setJsonHeaders();
+validatePostRequest();
 
 $pdo = getDbConnection();
 
@@ -57,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
-    if ($solveTime < 0) {
+    if ($solveTime < 0 || $solveTime > 86400) { // Max 24 hours
         http_response_code(400);
         echo json_encode(['error' => 'Invalid solve time.']);
         exit;
