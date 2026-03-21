@@ -22,13 +22,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Kees's Futoshiki Helper</title>
-    <link rel="stylesheet" href="styles.css?v=4.2">
+    <link rel="stylesheet" href="styles.css?v=4.3">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.svg">
 </head>
 <body>
     <div class="container">
-        <h1>Kees's Futoshiki Helper <span class="version">v4.2</span></h1>
+        <h1>Kees's Futoshiki Helper <span class="version">v4.3</span></h1>
 
         <div id="setup" class="setup">
             <label for="size-select">Grid Size:</label>
@@ -104,20 +104,26 @@
         <div id="solvability-status" class="solvability-status hidden">Solvable</div>
 
         <div id="game-counters" class="game-counters hidden">
-            <div class="counter-row">
-                <span class="counter-label">Time:</span>
+            <div class="counter-row current-game">
+                <span class="counter-value size" id="size-label">5x5</span>
+                <span class="counter-separator">|</span>
                 <span id="current-time" class="counter-value timer">0:00</span>
-                <span class="counter-separator">|</span>
-                <span class="counter-label">Your avg:</span>
-                <span id="local-avg-time" class="counter-value">--</span>
             </div>
-            <div class="counter-row">
-                <span class="counter-label" id="size-label">5x5</span>
-                <span class="counter-separator">|</span>
+            <div class="counter-row local-stats">
                 <span id="local-completed" class="counter-value">0</span>
                 <span class="counter-text">solved</span>
                 <span class="counter-separator">|</span>
-                <span class="counter-label">Global avg:</span>
+                <span class="counter-label">avg</span>
+                <span id="local-avg-time" class="counter-value">--</span>
+            </div>
+            <div class="counter-row global-header">
+                <span class="counter-label">global</span>
+            </div>
+            <div class="counter-row global-stats">
+                <span id="global-completed" class="counter-value">--</span>
+                <span class="counter-text">solved</span>
+                <span class="counter-separator">|</span>
+                <span class="counter-label">avg</span>
                 <span id="global-avg-time" class="counter-value">--</span>
             </div>
         </div>
@@ -147,7 +153,7 @@
         &copy; 2026 Kees Verruijt, Harlingen, The Netherlands
     </footer>
 
-    <script src="app.js?v=4.2"></script>
+    <script src="app.js?v=4.3"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('service-worker.js')

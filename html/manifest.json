@@ -1,0 +1,25 @@
+{
+    "name": "Kees's Futoshiki Helper",
+    "short_name": "Futoshiki",
+    "description": "A helper for solving Futoshiki puzzles",
+    "start_url": "/futoshiki/",
+    "scope": "/futoshiki/",
+    "display": "standalone",
+    "background_color": "#1a1a2e",
+    "theme_color": "#4a90d9",
+    "orientation": "any",
+    "icons": [
+        {
+            "src": "icon-192.svg",
+            "sizes": "192x192",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icon-192.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

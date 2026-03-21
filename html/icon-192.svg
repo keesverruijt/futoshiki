@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="24" fill="#1a1a2e"/>
+  <g fill="none" stroke="#4a90d9" stroke-width="3">
+    <rect x="30" y="30" width="40" height="40" rx="4"/>
+    <rect x="76" y="30" width="40" height="40" rx="4"/>
+    <rect x="122" y="30" width="40" height="40" rx="4"/>
+    <rect x="30" y="76" width="40" height="40" rx="4"/>
+    <rect x="76" y="76" width="40" height="40" rx="4"/>
+    <rect x="122" y="76" width="40" height="40" rx="4"/>
+    <rect x="30" y="122" width="40" height="40" rx="4"/>
+    <rect x="76" y="122" width="40" height="40" rx="4"/>
+    <rect x="122" y="122" width="40" height="40" rx="4"/>
+  </g>
+  <text x="50" y="58" font-family="Arial,sans-serif" font-size="24" fill="#e8e8e8">5</text>
+  <text x="96" y="58" font-family="Arial,sans-serif" font-size="24" fill="#e8e8e8">3</text>
+  <text x="96" y="104" font-family="Arial,sans-serif" font-size="24" fill="#e8e8e8">1</text>
+  <text x="142" y="150" font-family="Arial,sans-serif" font-size="24" fill="#e8e8e8">4</text>
+  <!-- Greater than symbol between cells -->
+  <path d="M72 50 L78 50 L72 56" stroke="#4a90d9" stroke-width="2" fill="none"/>
+</svg>

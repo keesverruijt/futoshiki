@@ -165,6 +165,7 @@ class FutoshikiGame {
         this.currentTimeElement = document.getElementById('current-time');
         this.localAvgTimeElement = document.getElementById('local-avg-time');
         this.localCompletedElement = document.getElementById('local-completed');
+        this.globalCompletedElement = document.getElementById('global-completed');
         this.globalAvgTimeElement = document.getElementById('global-avg-time');
         this.sizeLabelElement = document.getElementById('size-label');
 
@@ -489,9 +490,14 @@ class FutoshikiGame {
             const response = await fetch(`${API_BASE_URL}/stats.php?size=${this.size}`);
             if (response.ok) {
                 const data = await response.json();
-                if (this.globalAvgTimeElement && data) {
-                    const avgTime = data.completed > 0 ? data.totalTime / data.completed : null;
-                    this.globalAvgTimeElement.textContent = this.formatTime(avgTime);
+                if (data) {
+                    if (this.globalCompletedElement) {
+                        this.globalCompletedElement.textContent = data.completed || 0;
+                    }
+                    if (this.globalAvgTimeElement) {
+                        const avgTime = data.completed > 0 ? data.totalTime / data.completed : null;
+                        this.globalAvgTimeElement.textContent = this.formatTime(avgTime);
+                    }
                 }
             }
         } catch (error) {
