@@ -58,6 +58,7 @@ function generatePuzzle(difficulty) {
     let bestHintCount = Infinity;
     let attempts = 0;
     let successfulAttempts = 0;
+    let currentDifficulty = difficulty;
 
     const countTotalHints = (g, c) => {
         let count = 0;
@@ -77,15 +78,24 @@ function generatePuzzle(difficulty) {
 
     while ((Date.now() - startTime) < maxTime && !cancelled) {
         attempts++;
+        const elapsed = Date.now() - startTime;
+
+        // Fallback to easier difficulty if struggling
+        if (successfulAttempts === 0 && elapsed > 15000) {
+            if (currentDifficulty === 'hard') {
+                currentDifficulty = 'medium';
+            } else if (currentDifficulty === 'medium') {
+                currentDifficulty = 'easy';
+            }
+        }
 
         // Send progress every 10 attempts
         if (attempts % 10 === 0) {
-            const elapsed = (Date.now() - startTime) / 1000;
             postMessage({
                 type: 'progress',
                 attempts: successfulAttempts,
                 bestHintCount: bestHintCount === Infinity ? null : bestHintCount,
-                elapsed
+                elapsed: elapsed / 1000
             });
         }
 
@@ -97,7 +107,7 @@ function generatePuzzle(difficulty) {
         if (!solution) continue;
 
         // Step 2: Generate puzzle (starts with all constraints, then removes digits/constraints)
-        const success = generatePuzzleForDifficulty(solution, difficulty);
+        const success = generatePuzzleForDifficulty(solution, currentDifficulty);
         if (!success) continue;
 
         successfulAttempts++;

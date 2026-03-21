@@ -309,6 +309,12 @@ button:hover {
     font-size: 14px;
 }
 
+/* Entry mode - hide candidate and undo buttons */
+.input-row.entry-mode .mode-btn,
+.input-row.entry-mode .undo-btn {
+    display: none;
+}
+
 /* Digit complete styling for input buttons */
 .input-btn.number-btn.digit-complete {
     background: #48bb78;

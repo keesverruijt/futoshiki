@@ -750,6 +750,8 @@ class FutoshikiGame {
         this.gameContainer.classList.remove('hidden');
         this.solvabilityStatus.classList.remove('hidden');
         this.gameCounters.classList.add('hidden'); // Hide counters during entry
+        this.inputRow.classList.remove('hidden'); // Show number buttons for touch input
+        this.inputRow.classList.add('entry-mode'); // Hide candidate/undo buttons
         this.checkSolvability();
     }
 
@@ -773,6 +775,7 @@ class FutoshikiGame {
         this.controlsElement.classList.remove('hidden');
         this.gameCounters.classList.remove('hidden');
         this.inputRow.classList.remove('hidden');
+        this.inputRow.classList.remove('entry-mode'); // Show candidate/undo buttons
 
         // Clear undo history when starting to solve
         this.clearHistory();
