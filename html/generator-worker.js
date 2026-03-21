@@ -22,6 +22,10 @@ let grid = [];
 let constraints = [];
 let cancelled = false;
 
+// Cached possible digits computation
+let cachedPossible = null;
+let cacheValid = false;
+
 // Message handler
 onmessage = function(e) {
     const { type, data } = e.data;
@@ -48,6 +52,12 @@ function initializeGrid() {
             constraints[row][col] = { right: false, left: false, top: false, bottom: false };
         }
     }
+    invalidateCache();
+}
+
+function invalidateCache() {
+    cacheValid = false;
+    cachedPossible = null;
 }
 
 function generatePuzzle(difficulty) {
@@ -316,6 +326,7 @@ function generatePuzzleForDifficulty(solution, difficulty) {
 
                 const backup = grid[row][col];
                 grid[row][col] = null;
+                invalidateCache();
 
                 const analysis = analyzePuzzleDifficulty();
 
@@ -332,6 +343,7 @@ function generatePuzzleForDifficulty(solution, difficulty) {
                     break;
                 } else {
                     grid[row][col] = backup;
+                    invalidateCache();
                 }
             }
 
@@ -573,6 +585,7 @@ function analyzePuzzleDifficulty() {
     const originalGrid = grid;
     const workingGrid = originalGrid.map(row => [...row]);
     grid = workingGrid;
+    invalidateCache();
     initEliminatedCandidates();
 
     let maxStrategy = 'nakedSingle';
@@ -602,10 +615,12 @@ function analyzePuzzleDifficulty() {
                     const possible = getPossibleDigitsWithEliminations(row, col);
                     if (possible.size === 0) {
                         grid = originalGrid;
+                        invalidateCache();
                         return { solvable: false, maxStrategyRequired: maxStrategy };
                     }
                     if (possible.size === 1) {
                         grid[row][col] = [...possible][0];
+                        invalidateCache();
                         madeProgress = true;
                     }
                 }
@@ -617,6 +632,7 @@ function analyzePuzzleDifficulty() {
         const hiddenSingle = findHiddenSingleWithEliminations();
         if (hiddenSingle) {
             grid[hiddenSingle.row][hiddenSingle.col] = hiddenSingle.digit;
+            invalidateCache();
             if (maxStrategy === 'nakedSingle') maxStrategy = 'hiddenSingle';
             continue;
         }
@@ -707,10 +723,12 @@ function analyzePuzzleDifficulty() {
 
         // No strategy worked
         grid = originalGrid;
+        invalidateCache();
         return { solvable: false, maxStrategyRequired: maxStrategy };
     }
 
     grid = originalGrid;
+    invalidateCache();
     return { solvable: solved, maxStrategyRequired: maxStrategy };
 }
 
@@ -1302,12 +1320,30 @@ function findXWingForDigitWithEliminations(pencilMarks, digit, type) {
 
 // ========== Constraint Propagation ==========
 
+// Fast min/max for Sets (avoid spread operator)
+function setMin(s) {
+    let min = size + 1;
+    for (const v of s) if (v < min) min = v;
+    return min;
+}
+
+function setMax(s) {
+    let max = 0;
+    for (const v of s) if (v > max) max = v;
+    return max;
+}
+
 function getPossibleDigits(row, col) {
     const allPossible = computeAllPossibleDigits();
     return allPossible[row][col];
 }
 
 function computeAllPossibleDigits() {
+    // Use cache if valid
+    if (cacheValid && cachedPossible) {
+        return cachedPossible;
+    }
+
     const possible = [];
     for (let row = 0; row < size; row++) {
         possible[row] = [];
@@ -1334,8 +1370,11 @@ function computeAllPossibleDigits() {
     }
 
     let changed = true;
-    while (changed) {
+    let iterations = 0;
+    const maxIterations = size * 4; // Prevent infinite loops
+    while (changed && iterations < maxIterations) {
         changed = false;
+        iterations++;
         for (let row = 0; row < size; row++) {
             for (let col = 0; col < size; col++) {
                 if (applyConstraintsPropagation(row, col, possible)) {
@@ -1345,6 +1384,8 @@ function computeAllPossibleDigits() {
         }
     }
 
+    cachedPossible = possible;
+    cacheValid = true;
     return possible;
 }
 
@@ -1355,50 +1396,71 @@ function applyConstraintsPropagation(row, col, allPossible) {
     const sizeBefore = myPossible.size;
     const cons = constraints[row][col];
 
-    // For each direction where this cell > neighbor
-    const greaterThan = [
-        { hasConstraint: cons.right, nRow: row, nCol: col + 1 },
-        { hasConstraint: cons.left, nRow: row, nCol: col - 1 },
-        { hasConstraint: cons.top, nRow: row - 1, nCol: col },
-        { hasConstraint: cons.bottom, nRow: row + 1, nCol: col }
-    ];
-
-    for (const { hasConstraint, nRow, nCol } of greaterThan) {
-        if (hasConstraint && nRow >= 0 && nRow < size && nCol >= 0 && nCol < size) {
-            const neighborPossible = allPossible[nRow][nCol];
-            if (neighborPossible.size === 0 || myPossible.size === 0) continue;
-
-            const neighborMin = Math.min(...neighborPossible);
-            const myMax = Math.max(...myPossible);
-
-            for (let d = 1; d <= neighborMin; d++) {
-                myPossible.delete(d);
-            }
-            for (let d = myMax; d <= size; d++) {
-                neighborPossible.delete(d);
-            }
+    // Process constraints where this cell > neighbor (inline for speed)
+    if (cons.right && col + 1 < size) {
+        const neighborPossible = allPossible[row][col + 1];
+        if (neighborPossible.size > 0 && myPossible.size > 0) {
+            const neighborMin = setMin(neighborPossible);
+            const myMax = setMax(myPossible);
+            for (let d = 1; d <= neighborMin; d++) myPossible.delete(d);
+            for (let d = myMax; d <= size; d++) neighborPossible.delete(d);
+        }
+    }
+    if (cons.left && col > 0) {
+        const neighborPossible = allPossible[row][col - 1];
+        if (neighborPossible.size > 0 && myPossible.size > 0) {
+            const neighborMin = setMin(neighborPossible);
+            const myMax = setMax(myPossible);
+            for (let d = 1; d <= neighborMin; d++) myPossible.delete(d);
+            for (let d = myMax; d <= size; d++) neighborPossible.delete(d);
+        }
+    }
+    if (cons.top && row > 0) {
+        const neighborPossible = allPossible[row - 1][col];
+        if (neighborPossible.size > 0 && myPossible.size > 0) {
+            const neighborMin = setMin(neighborPossible);
+            const myMax = setMax(myPossible);
+            for (let d = 1; d <= neighborMin; d++) myPossible.delete(d);
+            for (let d = myMax; d <= size; d++) neighborPossible.delete(d);
+        }
+    }
+    if (cons.bottom && row + 1 < size) {
+        const neighborPossible = allPossible[row + 1][col];
+        if (neighborPossible.size > 0 && myPossible.size > 0) {
+            const neighborMin = setMin(neighborPossible);
+            const myMax = setMax(myPossible);
+            for (let d = 1; d <= neighborMin; d++) myPossible.delete(d);
+            for (let d = myMax; d <= size; d++) neighborPossible.delete(d);
         }
     }
 
-    // For each direction where neighbor > this cell
-    const lessThan = [
-        { nRow: row, nCol: col + 1, prop: 'left' },
-        { nRow: row, nCol: col - 1, prop: 'right' },
-        { nRow: row - 1, nCol: col, prop: 'bottom' },
-        { nRow: row + 1, nCol: col, prop: 'top' }
-    ];
-
-    for (const { nRow, nCol, prop } of lessThan) {
-        if (nRow >= 0 && nRow < size && nCol >= 0 && nCol < size) {
-            if (constraints[nRow][nCol][prop]) {
-                const neighborPossible = allPossible[nRow][nCol];
-                if (neighborPossible.size === 0 || myPossible.size === 0) continue;
-
-                const neighborMax = Math.max(...neighborPossible);
-                for (let d = neighborMax; d <= size; d++) {
-                    myPossible.delete(d);
-                }
-            }
+    // Process constraints where neighbor > this cell (inline for speed)
+    if (col + 1 < size && constraints[row][col + 1].left) {
+        const neighborPossible = allPossible[row][col + 1];
+        if (neighborPossible.size > 0 && myPossible.size > 0) {
+            const neighborMax = setMax(neighborPossible);
+            for (let d = neighborMax; d <= size; d++) myPossible.delete(d);
+        }
+    }
+    if (col > 0 && constraints[row][col - 1].right) {
+        const neighborPossible = allPossible[row][col - 1];
+        if (neighborPossible.size > 0 && myPossible.size > 0) {
+            const neighborMax = setMax(neighborPossible);
+            for (let d = neighborMax; d <= size; d++) myPossible.delete(d);
+        }
+    }
+    if (row > 0 && constraints[row - 1][col].bottom) {
+        const neighborPossible = allPossible[row - 1][col];
+        if (neighborPossible.size > 0 && myPossible.size > 0) {
+            const neighborMax = setMax(neighborPossible);
+            for (let d = neighborMax; d <= size; d++) myPossible.delete(d);
+        }
+    }
+    if (row + 1 < size && constraints[row + 1][col].top) {
+        const neighborPossible = allPossible[row + 1][col];
+        if (neighborPossible.size > 0 && myPossible.size > 0) {
+            const neighborMax = setMax(neighborPossible);
+            for (let d = neighborMax; d <= size; d++) myPossible.delete(d);
         }
     }
 
@@ -1453,7 +1515,7 @@ function applyMultiConstraintPropagation(row, col, allPossible) {
     if (rowNeighborsGreater.length >= 2) {
         const maxValues = rowNeighborsGreater.map(n => {
             const np = allPossible[n.nRow][n.nCol];
-            return np.size > 0 ? Math.max(...np) : size;
+            return np.size > 0 ? setMax(np) : size;
         });
         maxValues.sort((a, b) => a - b);
         const strictMax = maxValues[rowNeighborsGreater.length - 1] - rowNeighborsGreater.length;
@@ -1465,7 +1527,7 @@ function applyMultiConstraintPropagation(row, col, allPossible) {
     if (colNeighborsGreater.length >= 2) {
         const maxValues = colNeighborsGreater.map(n => {
             const np = allPossible[n.nRow][n.nCol];
-            return np.size > 0 ? Math.max(...np) : size;
+            return np.size > 0 ? setMax(np) : size;
         });
         maxValues.sort((a, b) => a - b);
         const strictMax = maxValues[colNeighborsGreater.length - 1] - colNeighborsGreater.length;
@@ -1477,7 +1539,7 @@ function applyMultiConstraintPropagation(row, col, allPossible) {
     if (rowNeighborsSmaller.length >= 2) {
         const minValues = rowNeighborsSmaller.map(n => {
             const np = allPossible[n.nRow][n.nCol];
-            return np.size > 0 ? Math.min(...np) : 1;
+            return np.size > 0 ? setMin(np) : 1;
         });
         minValues.sort((a, b) => b - a);
         const strictMin = minValues[rowNeighborsSmaller.length - 1] + rowNeighborsSmaller.length;
@@ -1489,7 +1551,7 @@ function applyMultiConstraintPropagation(row, col, allPossible) {
     if (colNeighborsSmaller.length >= 2) {
         const minValues = colNeighborsSmaller.map(n => {
             const np = allPossible[n.nRow][n.nCol];
-            return np.size > 0 ? Math.min(...np) : 1;
+            return np.size > 0 ? setMin(np) : 1;
         });
         minValues.sort((a, b) => b - a);
         const strictMin = minValues[colNeighborsSmaller.length - 1] + colNeighborsSmaller.length;
