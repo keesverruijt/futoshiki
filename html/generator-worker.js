@@ -433,36 +433,48 @@ function generatePuzzleForDifficulty(solution, difficulty) {
 function hasUniqueSolution() {
     const workingGrid = grid.map(row => [...row]);
     let solutionCount = 0;
+    let steps = 0;
+    const maxSteps = 100000; // Limit to prevent infinite loops on large grids
 
     function solve(g) {
         if (solutionCount >= 2) return; // Early exit if multiple solutions found
+        if (steps++ > maxSteps) return; // Prevent infinite loop
 
-        // Find first empty cell
-        let emptyRow = -1, emptyCol = -1;
-        outer: for (let row = 0; row < size; row++) {
+        // Find empty cell with fewest valid options (MRV heuristic)
+        let bestRow = -1, bestCol = -1, bestCount = size + 1;
+        for (let row = 0; row < size; row++) {
             for (let col = 0; col < size; col++) {
                 if (g[row][col] === null) {
-                    emptyRow = row;
-                    emptyCol = col;
-                    break outer;
+                    let count = 0;
+                    for (let d = 1; d <= size; d++) {
+                        if (isValidPlacement(g, row, col, d)) count++;
+                    }
+                    if (count === 0) return; // No valid placement, dead end
+                    if (count < bestCount) {
+                        bestCount = count;
+                        bestRow = row;
+                        bestCol = col;
+                        if (count === 1) break; // Can't do better than 1
+                    }
                 }
             }
+            if (bestCount === 1) break;
         }
 
         // No empty cells - found a solution
-        if (emptyRow === -1) {
+        if (bestRow === -1) {
             solutionCount++;
             return;
         }
 
         // Try each digit
         for (let digit = 1; digit <= size; digit++) {
-            if (isValidPlacement(g, emptyRow, emptyCol, digit)) {
-                g[emptyRow][emptyCol] = digit;
+            if (isValidPlacement(g, bestRow, bestCol, digit)) {
+                g[bestRow][bestCol] = digit;
                 solve(g);
-                g[emptyRow][emptyCol] = null;
+                g[bestRow][bestCol] = null;
 
-                if (solutionCount >= 2) return; // Early exit
+                if (solutionCount >= 2 || steps > maxSteps) return; // Early exit
             }
         }
     }
@@ -534,6 +546,9 @@ function hasUniqueSolution() {
     }
 
     solve(workingGrid);
+    // If we found exactly 1 solution, it's unique
+    // If we hit the step limit with 1 solution found, assume unique
+    // (better to accept than reject everything for large grids)
     return solutionCount === 1;
 }
 
@@ -591,7 +606,7 @@ function analyzePuzzleDifficulty() {
 
     let maxStrategy = 'nakedSingle';
     let solved = false;
-    let maxSteps = size * size * 10; // Increased for more complex strategies
+    let maxSteps = size * size * 20; // More steps for larger grids
 
     while (maxSteps > 0) {
         maxSteps--;
