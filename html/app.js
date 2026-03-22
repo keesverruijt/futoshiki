@@ -3888,7 +3888,252 @@ class FutoshikiGame {
     }
 }
 
+// ========== PWA INSTALL PROMPT ==========
+
+class InstallPrompt {
+    constructor() {
+        this.deferredPrompt = null;
+        this.installBanner = document.getElementById('install-banner');
+        this.installBtn = document.getElementById('install-btn');
+        this.dismissBtn = document.getElementById('install-dismiss-btn');
+        this.instructionsModal = document.getElementById('install-instructions');
+        this.instructionsClose = document.getElementById('install-instructions-close');
+        this.installSteps = document.getElementById('install-steps');
+
+        this.init();
+    }
+
+    init() {
+        // Check if already installed as PWA
+        if (window.matchMedia('(display-mode: standalone)').matches ||
+            window.navigator.standalone === true) {
+            return; // Already installed, don't show banner
+        }
+
+        // Check if user dismissed the banner before
+        if (localStorage.getItem('install-dismissed')) {
+            return;
+        }
+
+        // Listen for the beforeinstallprompt event (Chrome/Edge/Android)
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            this.deferredPrompt = e;
+            this.showBanner();
+        });
+
+        // For iOS Safari, show instructions
+        if (this.isIOS() && !window.navigator.standalone) {
+            this.showBanner();
+        }
+
+        this.setupEventListeners();
+    }
+
+    setupEventListeners() {
+        if (this.installBtn) {
+            this.installBtn.addEventListener('click', () => this.handleInstall());
+        }
+        if (this.dismissBtn) {
+            this.dismissBtn.addEventListener('click', () => this.dismissBanner());
+        }
+        if (this.instructionsClose) {
+            this.instructionsClose.addEventListener('click', () => this.hideInstructions());
+        }
+        if (this.instructionsModal) {
+            this.instructionsModal.addEventListener('click', (e) => {
+                if (e.target === this.instructionsModal) {
+                    this.hideInstructions();
+                }
+            });
+        }
+    }
+
+    isIOS() {
+        return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+    }
+
+    isAndroid() {
+        return /Android/.test(navigator.userAgent);
+    }
+
+    isSafari() {
+        return /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+    }
+
+    isChrome() {
+        return /Chrome/.test(navigator.userAgent) && !/Edge/.test(navigator.userAgent);
+    }
+
+    isFirefox() {
+        return /Firefox/.test(navigator.userAgent);
+    }
+
+    isSamsungBrowser() {
+        return /SamsungBrowser/.test(navigator.userAgent);
+    }
+
+    showBanner() {
+        if (this.installBanner) {
+            this.installBanner.classList.remove('hidden');
+        }
+    }
+
+    hideBanner() {
+        if (this.installBanner) {
+            this.installBanner.classList.add('hidden');
+        }
+    }
+
+    dismissBanner() {
+        this.hideBanner();
+        localStorage.setItem('install-dismissed', 'true');
+    }
+
+    async handleInstall() {
+        // If we have a deferred prompt (Chrome/Android), use it
+        if (this.deferredPrompt) {
+            this.deferredPrompt.prompt();
+            const result = await this.deferredPrompt.userChoice;
+            if (result.outcome === 'accepted') {
+                this.hideBanner();
+            }
+            this.deferredPrompt = null;
+            return;
+        }
+
+        // Otherwise, show instructions
+        this.showInstructions();
+    }
+
+    showInstructions() {
+        if (!this.instructionsModal || !this.installSteps) return;
+
+        const steps = this.getInstallSteps();
+        this.installSteps.innerHTML = steps;
+        this.instructionsModal.classList.remove('hidden');
+    }
+
+    hideInstructions() {
+        if (this.instructionsModal) {
+            this.instructionsModal.classList.add('hidden');
+        }
+    }
+
+    getInstallSteps() {
+        if (this.isIOS()) {
+            return this.getIOSSteps();
+        } else if (this.isAndroid()) {
+            return this.getAndroidSteps();
+        } else {
+            return this.getDesktopSteps();
+        }
+    }
+
+    getIOSSteps() {
+        const iosVersion = this.getIOSVersion();
+
+        if (iosVersion >= 13) {
+            return `
+                <ol>
+                    <li>Tap the <strong>Share</strong> button <span class="share-icon" style="background:#007AFF;">&#8593;</span> at the bottom of Safari</li>
+                    <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+                    <li>Tap <strong>"Add"</strong> in the top right corner</li>
+                </ol>
+                <p style="margin-top: 15px; font-size: 13px; color: #718096;">
+                    The app will appear on your home screen and work offline!
+                </p>
+            `;
+        } else {
+            return `
+                <ol>
+                    <li>Tap the <strong>Share</strong> button at the bottom of Safari</li>
+                    <li>Tap <strong>"Add to Home Screen"</strong></li>
+                    <li>Tap <strong>"Add"</strong></li>
+                </ol>
+            `;
+        }
+    }
+
+    getAndroidSteps() {
+        if (this.isSamsungBrowser()) {
+            return `
+                <ol>
+                    <li>Tap the <strong>menu</strong> button <span class="menu-icon">&#8801;</span> (three lines)</li>
+                    <li>Tap <strong>"Add page to"</strong></li>
+                    <li>Select <strong>"Home screen"</strong></li>
+                </ol>
+            `;
+        } else if (this.isChrome()) {
+            return `
+                <ol>
+                    <li>Tap the <strong>menu</strong> button <span class="menu-icon">&#8942;</span> (three dots) in the top right</li>
+                    <li>Tap <strong>"Add to Home screen"</strong> or <strong>"Install app"</strong></li>
+                    <li>Tap <strong>"Add"</strong> or <strong>"Install"</strong></li>
+                </ol>
+                <p style="margin-top: 15px; font-size: 13px; color: #718096;">
+                    The app will appear on your home screen and work offline!
+                </p>
+            `;
+        } else if (this.isFirefox()) {
+            return `
+                <ol>
+                    <li>Tap the <strong>menu</strong> button <span class="menu-icon">&#8942;</span> (three dots)</li>
+                    <li>Tap <strong>"Install"</strong> or <strong>"Add to Home screen"</strong></li>
+                    <li>Confirm the installation</li>
+                </ol>
+            `;
+        } else {
+            return `
+                <ol>
+                    <li>Open the browser menu (usually three dots <span class="menu-icon">&#8942;</span>)</li>
+                    <li>Look for <strong>"Add to Home screen"</strong> or <strong>"Install"</strong></li>
+                    <li>Follow the prompts to install</li>
+                </ol>
+            `;
+        }
+    }
+
+    getDesktopSteps() {
+        if (this.isChrome()) {
+            return `
+                <ol>
+                    <li>Click the <strong>install icon</strong> in the address bar (right side)</li>
+                    <li>Or click the menu <span class="menu-icon">&#8942;</span> and select <strong>"Install Futoshiki Helper"</strong></li>
+                    <li>Click <strong>"Install"</strong></li>
+                </ol>
+            `;
+        } else if (this.isFirefox()) {
+            return `
+                <p>Firefox on desktop doesn't support installing web apps directly.</p>
+                <p style="margin-top: 10px;">You can bookmark this page for easy access, or try using Chrome or Edge.</p>
+            `;
+        } else if (this.isSafari()) {
+            return `
+                <ol>
+                    <li>Click <strong>File</strong> in the menu bar</li>
+                    <li>Select <strong>"Add to Dock"</strong></li>
+                </ol>
+                <p style="margin-top: 15px; font-size: 13px; color: #718096;">
+                    This will add the app to your Dock for easy access.
+                </p>
+            `;
+        } else {
+            return `
+                <p>To install this app, look for an install option in your browser's menu or address bar.</p>
+            `;
+        }
+    }
+
+    getIOSVersion() {
+        const match = navigator.userAgent.match(/OS (\d+)_/);
+        return match ? parseInt(match[1], 10) : 0;
+    }
+}
+
 // Initialize the game when the DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     new FutoshikiGame();
+    new InstallPrompt();
 });

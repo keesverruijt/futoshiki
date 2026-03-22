@@ -22,13 +22,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Kees's Futoshiki Helper</title>
-    <link rel="stylesheet" href="styles.css?v=4.5">
+    <link rel="stylesheet" href="styles.css?v=4.7">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.svg">
 </head>
 <body>
     <div class="container">
-        <h1>Kees's Futoshiki Helper <span class="version">v4.6</span></h1>
+        <h1>Kees's Futoshiki Helper <span class="version">v4.7</span></h1>
 
         <div id="setup" class="setup">
             <label for="size-select">Grid Size:</label>
@@ -128,6 +128,22 @@
             </div>
         </div>
 
+        <div id="install-banner" class="install-banner hidden">
+            <div class="install-content">
+                <span class="install-text">Install this app on your device</span>
+                <button type="button" id="install-btn" class="install-btn">Install</button>
+                <button type="button" id="install-dismiss-btn" class="install-dismiss-btn" aria-label="Dismiss">×</button>
+            </div>
+        </div>
+
+        <div id="install-instructions" class="install-instructions hidden">
+            <div class="install-instructions-content">
+                <button type="button" id="install-instructions-close" class="install-instructions-close" aria-label="Close">×</button>
+                <h3>Install Futoshiki Helper</h3>
+                <div id="install-steps"></div>
+            </div>
+        </div>
+
         <div id="instructions" class="instructions">
             <h3>Rules</h3>
             <ul>
@@ -153,7 +169,7 @@
         &copy; 2026 Kees Verruijt, Harlingen, The Netherlands
     </footer>
 
-    <script src="app.js?v=4.5"></script>
+    <script src="app.js?v=4.7"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('service-worker.js')

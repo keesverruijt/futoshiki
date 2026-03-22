@@ -977,3 +977,182 @@ button:hover {
 .number-pad {
     display: none;
 }
+
+/* Install banner */
+.install-banner {
+    background: linear-gradient(135deg, #4299e1, #805ad5);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(66, 153, 225, 0.3);
+}
+
+.install-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.install-text {
+    font-weight: 500;
+    font-size: 15px;
+}
+
+.install-btn {
+    background: white;
+    color: #4299e1;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.install-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    background: white;
+}
+
+.install-dismiss-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 5px;
+    transition: color 0.2s;
+}
+
+.install-dismiss-btn:hover {
+    color: white;
+    background: transparent;
+}
+
+/* Install instructions modal */
+.install-instructions {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1001;
+    padding: 20px;
+}
+
+.install-instructions-content {
+    background: white;
+    padding: 25px 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 400px;
+    width: 100%;
+    position: relative;
+}
+
+.install-instructions-content h3 {
+    color: #2d3748;
+    margin-bottom: 20px;
+    padding-right: 30px;
+}
+
+.install-instructions-close {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: transparent;
+    border: none;
+    font-size: 28px;
+    color: #718096;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.install-instructions-close:hover {
+    color: #2d3748;
+    background: transparent;
+}
+
+#install-steps {
+    color: #4a5568;
+    line-height: 1.6;
+}
+
+#install-steps ol {
+    padding-left: 20px;
+    margin: 0;
+}
+
+#install-steps li {
+    margin-bottom: 12px;
+}
+
+#install-steps .icon {
+    display: inline-block;
+    background: #e2e8f0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+#install-steps .share-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: #4299e1;
+    color: white;
+    border-radius: 4px;
+    font-size: 16px;
+    vertical-align: middle;
+}
+
+#install-steps .menu-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: #718096;
+    color: white;
+    border-radius: 4px;
+    font-size: 18px;
+    font-weight: bold;
+    vertical-align: middle;
+}
+
+@media (max-width: 600px) {
+    .install-content {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .install-dismiss-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+    }
+
+    .install-banner {
+        position: relative;
+        padding-right: 40px;
+    }
+}
