@@ -34,6 +34,7 @@ onmessage = function(e) {
         case 'generate':
             cancelled = false;
             size = data.size;
+            invalidateCache();  // Clear cache when starting new generation
             generatePuzzle(data.difficulty);
             break;
         case 'cancel':
