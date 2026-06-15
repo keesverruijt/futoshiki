@@ -219,17 +219,20 @@ button:hover {
 /* Input row with number buttons */
 .input-row {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     margin-top: 15px;
     padding: 10px;
     background: #e2e8f0;
     border-radius: 8px;
 }
 
-.number-buttons {
+.input-row-line {
     display: flex;
+    align-items: center;
+    justify-content: center;
     gap: 6px;
 }
 
@@ -282,35 +285,38 @@ button:hover {
     cursor: not-allowed;
 }
 
-.input-btn.mode-btn {
+/* Candidate (pencil mark) digit buttons — same outer size as value buttons,
+   digit sits in its 3x3 pencil-mark slot. */
+.input-btn.candidate-btn {
     background: #805ad5;
-    padding: 4px;
+    padding: 0;
 }
 
-.input-btn.mode-btn:hover {
+.input-btn.candidate-btn:hover {
     background: #6b46c1;
 }
 
-.input-btn.mode-btn.active {
-    background: #38a169;
-    box-shadow: 0 0 0 3px rgba(56, 161, 105, 0.4);
+.candidate-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    width: 100%;
+    height: 100%;
+    padding: 4px;
 }
 
-.mode-icon {
+.candidate-slot {
     display: flex;
-    flex-direction: column;
-    font-size: 9px;
-    line-height: 1.1;
-    font-weight: 600;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 700;
+    color: white;
 }
 
-/* Candidate mode styling for number buttons */
-.input-row.candidate-mode .input-btn.number-btn {
-    font-size: 14px;
-}
-
-/* Entry mode - hide candidate and undo buttons */
-.input-row.entry-mode .mode-btn,
+/* Entry mode - hide candidate row and undo button */
+.input-row.entry-mode .candidate-buttons,
 .input-row.entry-mode .undo-btn {
     display: none;
 }

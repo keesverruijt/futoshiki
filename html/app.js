@@ -178,12 +178,11 @@ class FutoshikiGame {
         this.hintsUsed = 0;
         this.hintPenaltySeconds = 30;
 
-        // Input row elements for candidate mode
+        // Input row elements
         this.inputRow = document.getElementById('input-row');
-        this.candidateModeBtn = document.getElementById('candidate-mode-btn');
         this.numberButtonsContainer = document.getElementById('number-buttons');
+        this.candidateButtonsContainer = document.getElementById('candidate-buttons');
         this.eraserBtn = document.getElementById('eraser-btn');
-        this.candidateMode = false;
 
         // Undo history
         this.undoBtn = document.getElementById('undo-btn');
@@ -208,7 +207,6 @@ class FutoshikiGame {
         this.shareBtn.addEventListener('click', () => this.sharePuzzle());
 
         // Input row event bindings
-        this.candidateModeBtn.addEventListener('click', () => this.toggleCandidateMode());
         this.eraserBtn.addEventListener('click', () => this.onEraserClick());
 
         // Undo button
@@ -812,9 +810,6 @@ class FutoshikiGame {
         this.autoDigitsEnabled = false;
         this.autoDigitsBtn.textContent = 'Auto Digits: OFF';
         this.autoDigitsBtn.classList.remove('active');
-        this.candidateMode = false;
-        this.candidateModeBtn.classList.remove('active');
-        this.inputRow.classList.remove('candidate-mode');
         this.entryMode = false;
         this.givenCells = new Set();
     }
@@ -1164,38 +1159,53 @@ class FutoshikiGame {
 
     renderInputRow() {
         this.numberButtonsContainer.innerHTML = '';
+        this.candidateButtonsContainer.innerHTML = '';
 
-        // Create digit buttons 1 to N
+        // Row 1 (top): pencil-mark (candidate) digit buttons 1..N
+        for (let d = 1; d <= this.size; d++) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'input-btn candidate-btn';
+            btn.appendChild(this.makeCandidateGlyph(d));
+            btn.addEventListener('click', () => this.onInputRowNumberClick(d, true));
+            this.candidateButtonsContainer.appendChild(btn);
+        }
+
+        // Row 2: value digit buttons 1..N
         for (let d = 1; d <= this.size; d++) {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'input-btn number-btn';
             btn.textContent = d;
-            btn.addEventListener('click', () => this.onInputRowNumberClick(d));
+            btn.addEventListener('click', () => this.onInputRowNumberClick(d, false));
             this.numberButtonsContainer.appendChild(btn);
         }
     }
 
-    toggleCandidateMode() {
-        this.candidateMode = !this.candidateMode;
-
-        if (this.candidateMode) {
-            this.candidateModeBtn.classList.add('active');
-            this.inputRow.classList.add('candidate-mode');
-        } else {
-            this.candidateModeBtn.classList.remove('active');
-            this.inputRow.classList.remove('candidate-mode');
+    /**
+     * Build a mini 3x3 grid so a pencil-mark digit sits in the same spot
+     * as it would inside a cell's auto-digits display.
+     */
+    makeCandidateGlyph(digit) {
+        const grid = document.createElement('span');
+        grid.className = 'candidate-grid';
+        for (let i = 1; i <= 9; i++) {
+            const slot = document.createElement('span');
+            slot.className = 'candidate-slot';
+            if (i === digit) slot.textContent = digit;
+            grid.appendChild(slot);
         }
+        return grid;
     }
 
-    onInputRowNumberClick(digit) {
+    onInputRowNumberClick(digit, isCandidate) {
         // Use selectedCell which persists even when focus moves to button
         if (!this.selectedCell) {
             // If no cell was selected, try the first empty cell
             const firstEmpty = this.gridElement.querySelector('.cell-input:not(.given)');
             if (firstEmpty) {
                 firstEmpty.focus();
-                this.handleInputRowDigit(firstEmpty, digit);
+                this.handleInputRowDigit(firstEmpty, digit, isCandidate);
             }
             return;
         }
@@ -1212,15 +1222,15 @@ class FutoshikiGame {
             return;
         }
 
-        this.handleInputRowDigit(input, digit);
+        this.handleInputRowDigit(input, digit, isCandidate);
     }
 
-    handleInputRowDigit(input, digit) {
+    handleInputRowDigit(input, digit, isCandidate) {
         const row = parseInt(input.dataset.row);
         const col = parseInt(input.dataset.col);
 
-        if (this.candidateMode && !this.entryMode) {
-            // In candidate mode, toggle the candidate for this digit
+        if (isCandidate && !this.entryMode) {
+            // Toggle the candidate (pencil mark) for this digit
             this.saveToHistory();
             this.toggleCandidate(row, col, digit);
         } else {
@@ -1286,21 +1296,17 @@ class FutoshikiGame {
 
         this.saveToHistory();
 
-        if (this.candidateMode) {
-            // In candidate mode, clear all eliminations for this cell
-            this.clearCandidateEliminations(row, col);
-        } else {
-            // Normal mode - clear the cell
-            input.value = '';
-            this.grid[row][col] = null;
-            input.classList.remove('has-value', 'conflict');
-            this.checkConflicts();
-            this.updateAutoDigits();
-            this.updateAllCompletedDigits();
+        // Clear the cell value and any candidate eliminations
+        input.value = '';
+        this.grid[row][col] = null;
+        input.classList.remove('has-value', 'conflict');
+        this.clearCandidateEliminations(row, col);
+        this.checkConflicts();
+        this.updateAutoDigits();
+        this.updateAllCompletedDigits();
 
-            if (!this.entryMode) {
-                this.checkSolvability();
-            }
+        if (!this.entryMode) {
+            this.checkSolvability();
         }
     }
 
@@ -1442,18 +1448,11 @@ class FutoshikiGame {
                 return;
             }
 
-            // In candidate mode, clear all candidate eliminations for this cell
-            if (this.candidateMode && !this.entryMode) {
-                e.preventDefault();
-                this.saveToHistory();
-                this.clearCandidateEliminations(row, col);
-                return;
-            }
-
             this.saveToHistory();
             this.grid[row][col] = null;
             e.target.value = '';
             e.target.classList.remove('has-value');
+            this.clearCandidateEliminations(row, col);
             this.updateAutoDigits();
             this.updateConflictDisplay();
             this.updateAllCompletedDigits();
@@ -1476,8 +1475,8 @@ class FutoshikiGame {
                 return;
             }
 
-            // In candidate mode, toggle the candidate instead of setting the value
-            if (this.candidateMode && !this.entryMode) {
+            // Shift+digit toggles a candidate (pencil mark) instead of setting the value
+            if (e.shiftKey && !this.entryMode) {
                 this.saveToHistory();
                 this.toggleCandidate(row, col, num);
                 return;
