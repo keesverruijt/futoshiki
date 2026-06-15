@@ -252,7 +252,7 @@ class FutoshikiGame {
                 const eliminated = [];
                 for (let d = 1; d <= this.size; d++) {
                     const digitSpan = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${d}"]`);
-                    if (digitSpan && digitSpan.classList.contains('eliminated')) {
+                    if (digitSpan && digitSpan.classList.contains('pencil-mark')) {
                         eliminated.push(d);
                     }
                 }
@@ -346,7 +346,7 @@ class FutoshikiGame {
                 for (let d = 1; d <= this.size; d++) {
                     const digitSpan = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${d}"]`);
                     if (digitSpan) {
-                        digitSpan.classList.remove('eliminated');
+                        digitSpan.classList.remove('pencil-mark');
                     }
                 }
             }
@@ -363,7 +363,7 @@ class FutoshikiGame {
             for (const digit of marks[key]) {
                 const digitSpan = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${digit}"]`);
                 if (digitSpan) {
-                    digitSpan.classList.add('eliminated');
+                    digitSpan.classList.add('pencil-mark');
                 }
             }
         }
@@ -1117,6 +1117,7 @@ class FutoshikiGame {
         this.gridElement.innerHTML = '';
         // Remove old grid-N classes and add current one for responsive scaling
         this.gridElement.className = `grid grid-${this.size}`;
+        this.gridElement.style.setProperty('--grid-size', this.size);
         this.gridElement.style.gridTemplateColumns = `repeat(${this.size}, var(--cell-size, 50px))`;
         this.gridElement.style.gridTemplateRows = `repeat(${this.size}, var(--cell-size, 50px))`;
 
@@ -1263,17 +1264,12 @@ class FutoshikiGame {
         const digitSpan = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${digit}"]`);
         if (!digitSpan) return;
 
-        // Toggle the eliminated state
-        if (digitSpan.classList.contains('eliminated')) {
-            digitSpan.classList.remove('eliminated');
-        } else {
-            digitSpan.classList.add('eliminated');
-        }
-
-        // Make sure auto-digits are visible when in candidate mode
-        if (!this.autoDigitsEnabled) {
-            this.toggleAutoDigits();
-        }
+        // Flip the user's pencil-mark on this digit. The class records that the
+        // user has a manual opinion about this digit; visibility is then the XOR
+        // of (auto-suggested) and (user-marked) — so a click on a faded auto
+        // candidate negates it, and a click on a blank cell adds a mark.
+        digitSpan.classList.toggle('pencil-mark');
+        this.updateAutoDigits();
     }
 
     onEraserClick() {
@@ -1318,7 +1314,7 @@ class FutoshikiGame {
         if (!autoDigitsContainer) return;
 
         const digitSpans = autoDigitsContainer.querySelectorAll('.auto-digit');
-        digitSpans.forEach(span => span.classList.remove('eliminated'));
+        digitSpans.forEach(span => span.classList.remove('pencil-mark'));
     }
 
     onNumberPadClick(digit) {
@@ -1467,8 +1463,13 @@ class FutoshikiGame {
             return;
         }
 
-        // Handle digit keys - allow direct overwrite (not for given cells in solve mode)
-        const num = parseInt(e.key);
+        // Handle digit keys - allow direct overwrite (not for given cells in solve mode).
+        // With Shift held, e.key is the shifted character (!, @, …); fall back to
+        // e.code so the digit is still recoverable.
+        let num = parseInt(e.key);
+        if (isNaN(num) && /^(Digit|Numpad)[1-9]$/.test(e.code)) {
+            num = parseInt(e.code.slice(-1));
+        }
         if (num >= 1 && num <= this.size) {
             e.preventDefault();
             if (!this.entryMode && isGiven) {
@@ -1616,14 +1617,20 @@ class FutoshikiGame {
             const autoDigitsContainer = cell.querySelector('.auto-digits');
             const input = cell.querySelector('.cell-input');
 
-            if (!this.autoDigitsEnabled || this.grid[row][col] !== null) {
+            const hasValue = this.grid[row][col] !== null;
+            const hasPencilMarks = !!autoDigitsContainer.querySelector('.auto-digit.pencil-mark');
+            const showContainer = !hasValue && (this.autoDigitsEnabled || hasPencilMarks);
+
+            if (!showContainer) {
                 autoDigitsContainer.style.display = 'none';
                 cell.classList.remove('has-auto-digits');
-                input.style.background = this.grid[row][col] !== null ? '#ebf8ff' : 'white';
+                input.style.background = hasValue ? '#ebf8ff' : 'white';
                 return;
             }
 
-            const possibleDigits = this.getPossibleDigits(row, col);
+            const possibleDigits = this.autoDigitsEnabled
+                ? this.getPossibleDigits(row, col)
+                : null;
             autoDigitsContainer.style.display = 'grid';
             cell.classList.add('has-auto-digits');
             input.style.background = 'transparent';
@@ -1633,10 +1640,14 @@ class FutoshikiGame {
                 const digit = parseInt(span.dataset.digit);
                 if (digit > this.size) {
                     span.style.display = 'none';
-                } else {
-                    span.style.display = 'flex';
-                    span.style.visibility = possibleDigits.has(digit) ? 'visible' : 'hidden';
+                    return;
                 }
+                span.style.display = 'flex';
+                const isMarked = span.classList.contains('pencil-mark');
+                const isAutoCandidate = possibleDigits ? possibleDigits.has(digit) : false;
+                // XOR: clicking flips visibility. Off + marked = shown (user-added);
+                // on + marked = hidden (user-negated); otherwise auto's default holds.
+                span.style.visibility = (isMarked !== isAutoCandidate) ? 'visible' : 'hidden';
             });
         });
     }

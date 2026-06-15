@@ -329,9 +329,14 @@ button:hover {
 
 .grid {
     --cell-size: 50px;
-    --grid-gap: 12px;
+    --grid-gap: 8px;
     --font-size: 24px;
     --auto-digit-size: 12px;
+    /* Constraint triangle geometry: `tip` is the perpendicular height
+       (matches the gap so it lands flush with neighbouring cells);
+       `base` is half the base width — smaller tip vs. base = more acute. */
+    --constraint-tip: 8px;
+    --constraint-base: 16px;
     display: grid;
     gap: var(--grid-gap);
     background: #e2e8f0;
@@ -406,7 +411,8 @@ button:hover {
     background: #e53e3e;
 }
 
-/* Constraint triangles - fill the 12px gap between boxes */
+/* Constraint triangles fill the gap between cells. Tip length = gap so the
+   triangle is flush with the neighbouring cell; base is independent. */
 .constraint {
     position: absolute;
     width: 0;
@@ -414,44 +420,40 @@ button:hover {
     pointer-events: none;
 }
 
-/* Right constraint - triangle pointing right (this cell > right cell) */
 .constraint-right {
-    right: -12px;
+    right: calc(-1 * var(--constraint-tip));
     top: 50%;
     transform: translateY(-50%);
-    border-top: 20px solid transparent;
-    border-bottom: 20px solid transparent;
-    border-left: 12px solid #000000;
+    border-top: var(--constraint-base) solid transparent;
+    border-bottom: var(--constraint-base) solid transparent;
+    border-left: var(--constraint-tip) solid #000000;
 }
 
-/* Left constraint - triangle pointing left (this cell > left cell) */
 .constraint-left {
-    left: -12px;
+    left: calc(-1 * var(--constraint-tip));
     top: 50%;
     transform: translateY(-50%);
-    border-top: 20px solid transparent;
-    border-bottom: 20px solid transparent;
-    border-right: 12px solid #000000;
+    border-top: var(--constraint-base) solid transparent;
+    border-bottom: var(--constraint-base) solid transparent;
+    border-right: var(--constraint-tip) solid #000000;
 }
 
-/* Bottom constraint - triangle pointing down (this cell > bottom cell) */
 .constraint-bottom {
-    bottom: -12px;
+    bottom: calc(-1 * var(--constraint-tip));
     left: 50%;
     transform: translateX(-50%);
-    border-left: 20px solid transparent;
-    border-right: 20px solid transparent;
-    border-top: 12px solid #000000;
+    border-left: var(--constraint-base) solid transparent;
+    border-right: var(--constraint-base) solid transparent;
+    border-top: var(--constraint-tip) solid #000000;
 }
 
-/* Top constraint - triangle pointing up (this cell > top cell) */
 .constraint-top {
-    top: -12px;
+    top: calc(-1 * var(--constraint-tip));
     left: 50%;
     transform: translateX(-50%);
-    border-left: 20px solid transparent;
-    border-right: 20px solid transparent;
-    border-bottom: 12px solid #000000;
+    border-left: var(--constraint-base) solid transparent;
+    border-right: var(--constraint-base) solid transparent;
+    border-bottom: var(--constraint-tip) solid #000000;
 }
 
 /* Auto digits display */
@@ -472,19 +474,18 @@ button:hover {
     justify-content: center;
     align-items: center;
     font-size: var(--auto-digit-size, 12px);
-    color: #4a5568;
-    font-weight: 600;
+    color: #a0aec0;
+    font-weight: 500;
 }
 
 .auto-digit.hidden {
     visibility: hidden;
 }
 
-/* Eliminated candidates (manually crossed out by user) */
-.auto-digit.eliminated {
-    color: #cbd5e0;
-    text-decoration: line-through;
-    opacity: 0.5;
+/* User-added pencil mark — drawn solid over (or alongside) the auto candidates. */
+.auto-digit.pencil-mark {
+    color: #2d3748;
+    font-weight: 700;
 }
 
 .solvability-status {
@@ -803,7 +804,8 @@ button:hover {
 /* Responsive scaling for mobile devices */
 @media (max-width: 600px) {
     body {
-        padding: 10px;
+        padding: 4px;
+        overflow-x: hidden;
     }
 
     h1 {
@@ -825,109 +827,43 @@ button:hover {
         gap: 10px;
     }
 
+    .input-row-line {
+        flex-wrap: wrap;
+    }
+
     .instructions {
         padding: 15px;
     }
 
-    /* Scale grid for 7x7, 8x8, 9x9 on mobile */
-    .grid.grid-7,
-    .grid.grid-8,
-    .grid.grid-9 {
-        --cell-size: 38px;
-        --grid-gap: 8px;
-        --font-size: 18px;
-        --auto-digit-size: 9px;
-        padding: 6px;
-    }
-
-    .grid.grid-7 .constraint-right,
-    .grid.grid-8 .constraint-right,
-    .grid.grid-9 .constraint-right {
-        right: -8px;
-        border-top-width: 14px;
-        border-bottom-width: 14px;
-        border-left-width: 8px;
-    }
-
-    .grid.grid-7 .constraint-left,
-    .grid.grid-8 .constraint-left,
-    .grid.grid-9 .constraint-left {
-        left: -8px;
-        border-top-width: 14px;
-        border-bottom-width: 14px;
-        border-right-width: 8px;
-    }
-
-    .grid.grid-7 .constraint-bottom,
-    .grid.grid-8 .constraint-bottom,
-    .grid.grid-9 .constraint-bottom {
-        bottom: -8px;
-        border-left-width: 14px;
-        border-right-width: 14px;
-        border-top-width: 8px;
-    }
-
-    .grid.grid-7 .constraint-top,
-    .grid.grid-8 .constraint-top,
-    .grid.grid-9 .constraint-top {
-        top: -8px;
-        border-left-width: 14px;
-        border-right-width: 14px;
-        border-bottom-width: 8px;
+    /* Playing field spans the entire device width on mobile, regardless of N.
+       Cell size is derived from viewport so any grid 4..9 lays out flush.
+       Negative margin lets the grid escape the body's 4px padding. */
+    .grid {
+        --grid-gap: 6px;
+        --constraint-tip: 6px;
+        --constraint-base: 11px;
+        --cell-size: calc(
+            (100vw - (var(--grid-size) - 1) * var(--grid-gap))
+            / var(--grid-size)
+        );
+        --font-size: calc(var(--cell-size) * 0.5);
+        --auto-digit-size: calc(var(--cell-size) * 0.22);
+        width: 100vw;
+        margin-left: -4px;
+        margin-right: -4px;
+        padding: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
     }
 }
 
 /* Even smaller screens */
 @media (max-width: 400px) {
-    .grid.grid-6,
-    .grid.grid-7,
-    .grid.grid-8,
-    .grid.grid-9 {
-        --cell-size: 32px;
-        --grid-gap: 6px;
-        --font-size: 16px;
-        --auto-digit-size: 8px;
-        padding: 5px;
-    }
-
-    .grid.grid-6 .constraint-right,
-    .grid.grid-7 .constraint-right,
-    .grid.grid-8 .constraint-right,
-    .grid.grid-9 .constraint-right {
-        right: -6px;
-        border-top-width: 10px;
-        border-bottom-width: 10px;
-        border-left-width: 6px;
-    }
-
-    .grid.grid-6 .constraint-left,
-    .grid.grid-7 .constraint-left,
-    .grid.grid-8 .constraint-left,
-    .grid.grid-9 .constraint-left {
-        left: -6px;
-        border-top-width: 10px;
-        border-bottom-width: 10px;
-        border-right-width: 6px;
-    }
-
-    .grid.grid-6 .constraint-bottom,
-    .grid.grid-7 .constraint-bottom,
-    .grid.grid-8 .constraint-bottom,
-    .grid.grid-9 .constraint-bottom {
-        bottom: -6px;
-        border-left-width: 10px;
-        border-right-width: 10px;
-        border-top-width: 6px;
-    }
-
-    .grid.grid-6 .constraint-top,
-    .grid.grid-7 .constraint-top,
-    .grid.grid-8 .constraint-top,
-    .grid.grid-9 .constraint-top {
-        top: -6px;
-        border-left-width: 10px;
-        border-right-width: 10px;
-        border-bottom-width: 6px;
+    .grid {
+        --grid-gap: 4px;
+        --constraint-tip: 4px;
+        --constraint-base: 9px;
     }
 
     .difficulty-btn {
