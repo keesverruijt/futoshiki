@@ -482,8 +482,9 @@ button:hover {
     visibility: hidden;
 }
 
-/* User-added pencil mark — drawn solid over (or alongside) the auto candidates. */
-.auto-digit.pencil-mark {
+/* User-asserted pencil mark — always shown, drawn solid so it stands out
+   from the lighter auto-suggested candidates. */
+.auto-digit.user-shown {
     color: #2d3748;
     font-weight: 700;
 }
@@ -827,8 +828,22 @@ button:hover {
         gap: 10px;
     }
 
-    .input-row-line {
-        flex-wrap: wrap;
+    /* Digit rows fill the screen width and the buttons share it equally so
+       all N candidate / value buttons stay on one line even at 9×9. The
+       action row (eraser + undo) keeps its fixed-size buttons. */
+    .number-buttons,
+    .candidate-buttons {
+        width: 100%;
+    }
+
+    .number-buttons .input-btn,
+    .candidate-buttons .input-btn {
+        flex: 1 1 0;
+        min-width: 0;
+        width: auto;
+        height: auto;
+        max-width: 48px;
+        aspect-ratio: 1;
     }
 
     .instructions {

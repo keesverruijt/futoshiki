@@ -238,7 +238,9 @@ class FutoshikiGame {
     }
 
     /**
-     * Capture candidate mark eliminations from the DOM
+     * Capture per-cell pencil-mark state from the DOM.
+     * Each entry is { shown: [...digits], hidden: [...digits] }: digits the
+     * user explicitly asserted vs. explicitly negated.
      */
     captureCandidateMarks() {
         const marks = {};
@@ -249,15 +251,16 @@ class FutoshikiGame {
                 const autoDigitsContainer = cell.querySelector('.auto-digits');
                 if (!autoDigitsContainer) continue;
 
-                const eliminated = [];
+                const shown = [];
+                const hidden = [];
                 for (let d = 1; d <= this.size; d++) {
                     const digitSpan = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${d}"]`);
-                    if (digitSpan && digitSpan.classList.contains('pencil-mark')) {
-                        eliminated.push(d);
-                    }
+                    if (!digitSpan) continue;
+                    if (digitSpan.classList.contains('user-shown')) shown.push(d);
+                    if (digitSpan.classList.contains('user-hidden')) hidden.push(d);
                 }
-                if (eliminated.length > 0) {
-                    marks[`${row},${col}`] = eliminated;
+                if (shown.length || hidden.length) {
+                    marks[`${row},${col}`] = { shown, hidden };
                 }
             }
         }
@@ -332,10 +335,10 @@ class FutoshikiGame {
     }
 
     /**
-     * Restore candidate mark eliminations to the DOM
+     * Restore per-cell pencil-mark state to the DOM.
      */
     restoreCandidateMarks(marks) {
-        // First clear all eliminations
+        // First clear all user marks
         for (let row = 0; row < this.size; row++) {
             for (let col = 0; col < this.size; col++) {
                 const cell = this.gridElement.querySelector(`.grid-cell[data-row="${row}"][data-col="${col}"]`);
@@ -343,16 +346,12 @@ class FutoshikiGame {
                 const autoDigitsContainer = cell.querySelector('.auto-digits');
                 if (!autoDigitsContainer) continue;
 
-                for (let d = 1; d <= this.size; d++) {
-                    const digitSpan = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${d}"]`);
-                    if (digitSpan) {
-                        digitSpan.classList.remove('pencil-mark');
-                    }
-                }
+                const digitSpans = autoDigitsContainer.querySelectorAll('.auto-digit');
+                digitSpans.forEach(span => span.classList.remove('user-shown', 'user-hidden'));
             }
         }
 
-        // Then restore saved eliminations
+        // Then restore saved marks
         for (const key in marks) {
             const [row, col] = key.split(',').map(Number);
             const cell = this.gridElement.querySelector(`.grid-cell[data-row="${row}"][data-col="${col}"]`);
@@ -360,11 +359,17 @@ class FutoshikiGame {
             const autoDigitsContainer = cell.querySelector('.auto-digits');
             if (!autoDigitsContainer) continue;
 
-            for (const digit of marks[key]) {
-                const digitSpan = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${digit}"]`);
-                if (digitSpan) {
-                    digitSpan.classList.add('pencil-mark');
-                }
+            const entry = marks[key];
+            // Backwards-compat: older states stored a flat array.
+            const shown = Array.isArray(entry) ? [] : (entry.shown || []);
+            const hidden = Array.isArray(entry) ? entry : (entry.hidden || []);
+            for (const digit of shown) {
+                const span = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${digit}"]`);
+                if (span) span.classList.add('user-shown');
+            }
+            for (const digit of hidden) {
+                const span = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${digit}"]`);
+                if (span) span.classList.add('user-hidden');
             }
         }
     }
@@ -1264,11 +1269,25 @@ class FutoshikiGame {
         const digitSpan = autoDigitsContainer.querySelector(`.auto-digit[data-digit="${digit}"]`);
         if (!digitSpan) return;
 
-        // Flip the user's pencil-mark on this digit. The class records that the
-        // user has a manual opinion about this digit; visibility is then the XOR
-        // of (auto-suggested) and (user-marked) — so a click on a faded auto
-        // candidate negates it, and a click on a blank cell adds a mark.
-        digitSpan.classList.toggle('pencil-mark');
+        // Flip this digit's effective visibility, then store the override in
+        // the class that *persists* the chosen state independently of Auto
+        // Digits: `user-shown` always shows, `user-hidden` always hides.
+        // `isAutoCandidate` only counts when Auto Digits is on — otherwise the
+        // computed possibility doesn't contribute to what the user actually sees.
+        const isAutoCandidate = this.autoDigitsEnabled
+            && this.getPossibleDigits(row, col).has(digit);
+        const isUserShown = digitSpan.classList.contains('user-shown');
+        const isUserHidden = digitSpan.classList.contains('user-hidden');
+        const isVisible = isUserShown || (isAutoCandidate && !isUserHidden);
+
+        digitSpan.classList.remove('user-shown', 'user-hidden');
+        if (isVisible) {
+            // Flip to hidden: only need an explicit class if auto would re-show it.
+            if (isAutoCandidate) digitSpan.classList.add('user-hidden');
+        } else {
+            // Flip to shown: only need an explicit class if auto won't show it.
+            if (!isAutoCandidate) digitSpan.classList.add('user-shown');
+        }
         this.updateAutoDigits();
     }
 
@@ -1314,7 +1333,7 @@ class FutoshikiGame {
         if (!autoDigitsContainer) return;
 
         const digitSpans = autoDigitsContainer.querySelectorAll('.auto-digit');
-        digitSpans.forEach(span => span.classList.remove('pencil-mark'));
+        digitSpans.forEach(span => span.classList.remove('user-shown', 'user-hidden'));
     }
 
     onNumberPadClick(digit) {
@@ -1618,8 +1637,8 @@ class FutoshikiGame {
             const input = cell.querySelector('.cell-input');
 
             const hasValue = this.grid[row][col] !== null;
-            const hasPencilMarks = !!autoDigitsContainer.querySelector('.auto-digit.pencil-mark');
-            const showContainer = !hasValue && (this.autoDigitsEnabled || hasPencilMarks);
+            const hasUserShown = !!autoDigitsContainer.querySelector('.auto-digit.user-shown');
+            const showContainer = !hasValue && (this.autoDigitsEnabled || hasUserShown);
 
             if (!showContainer) {
                 autoDigitsContainer.style.display = 'none';
@@ -1643,11 +1662,12 @@ class FutoshikiGame {
                     return;
                 }
                 span.style.display = 'flex';
-                const isMarked = span.classList.contains('pencil-mark');
+                const isUserShown = span.classList.contains('user-shown');
+                const isUserHidden = span.classList.contains('user-hidden');
                 const isAutoCandidate = possibleDigits ? possibleDigits.has(digit) : false;
-                // XOR: clicking flips visibility. Off + marked = shown (user-added);
-                // on + marked = hidden (user-negated); otherwise auto's default holds.
-                span.style.visibility = (isMarked !== isAutoCandidate) ? 'visible' : 'hidden';
+                // user-shown wins; otherwise auto-candidate unless user-hidden.
+                const visible = isUserShown || (isAutoCandidate && !isUserHidden);
+                span.style.visibility = visible ? 'visible' : 'hidden';
             });
         });
     }
@@ -1656,6 +1676,25 @@ class FutoshikiGame {
         // Build possible values for ALL cells, then iteratively apply constraints
         const allPossible = this.computeAllPossibleDigits();
         return allPossible[row][col];
+    }
+
+    /**
+     * Possible digits with the user's `user-hidden` pencil-mark negations
+     * subtracted. Used by hint logic so it doesn't keep re-suggesting an
+     * elimination the user has already applied as a pencil mark.
+     */
+    getEffectivePossibleDigits(row, col) {
+        const set = new Set(this.getPossibleDigits(row, col));
+        const cell = this.gridElement.querySelector(
+            `.grid-cell[data-row="${row}"][data-col="${col}"]`
+        );
+        if (!cell) return set;
+        const container = cell.querySelector('.auto-digits');
+        if (!container) return set;
+        container.querySelectorAll('.auto-digit.user-hidden').forEach(span => {
+            set.delete(parseInt(span.dataset.digit));
+        });
+        return set;
     }
 
     computeAllPossibleDigits() {
@@ -1905,7 +1944,7 @@ class FutoshikiGame {
                 const possibleCols = [];
                 for (let col = 0; col < this.size; col++) {
                     if (this.grid[row][col] === null) {
-                        const possible = this.getPossibleDigits(row, col);
+                        const possible = this.getEffectivePossibleDigits(row, col);
                         if (possible.has(digit)) {
                             possibleCols.push(col);
                         }
@@ -1936,7 +1975,7 @@ class FutoshikiGame {
                 const possibleRows = [];
                 for (let row = 0; row < this.size; row++) {
                     if (this.grid[row][col] === null) {
-                        const possible = this.getPossibleDigits(row, col);
+                        const possible = this.getEffectivePossibleDigits(row, col);
                         if (possible.has(digit)) {
                             possibleRows.push(row);
                         }
@@ -1974,7 +2013,7 @@ class FutoshikiGame {
         for (let row = 0; row < this.size; row++) {
             for (let col = 0; col < this.size; col++) {
                 if (this.grid[row][col] === null) {
-                    const possibleDigits = this.getPossibleDigits(row, col);
+                    const possibleDigits = this.getEffectivePossibleDigits(row, col);
                     if (possibleDigits.size === 1) {
                         const digit = [...possibleDigits][0];
                         this.showStrategyHint({
@@ -2537,7 +2576,7 @@ class FutoshikiGame {
         for (let row = 0; row < this.size; row++) {
             for (let col = 0; col < this.size; col++) {
                 if (this.grid[row][col] === null) {
-                    pencilMarks.set(`${row},${col}`, this.getPossibleDigits(row, col));
+                    pencilMarks.set(`${row},${col}`, this.getEffectivePossibleDigits(row, col));
                 }
             }
         }
