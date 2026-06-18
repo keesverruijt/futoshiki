@@ -831,6 +831,12 @@ button:hover {
     /* Digit rows fill the screen width and the buttons share it equally so
        all N candidate / value buttons stay on one line even at 9×9. The
        action row (eraser + undo) keeps its fixed-size buttons. */
+    .input-row {
+        width: 100%;
+        max-width: 100%;
+        padding: 6px;
+    }
+
     .number-buttons,
     .candidate-buttons {
         width: 100%;

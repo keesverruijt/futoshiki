@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-const CACHE_NAME = 'futoshiki-v4.17';
+const CACHE_NAME = 'futoshiki-v4.18';
 const STATIC_ASSETS = [
     '/futoshiki/',
     '/futoshiki/index.html',
